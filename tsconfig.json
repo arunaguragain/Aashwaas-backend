@@ -14,6 +14,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/**/*", "src/services/user.services.ts"],
+  "include": ["src/**/*", "src/services/user.service.ts"],
   "exclude": ["node_modules", "dist"]
 }

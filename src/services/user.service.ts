@@ -7,7 +7,7 @@ import { JWT_SECRET } from "../config";
 
 let userRepository = new UserRepository();
 
-export class UserServices{
+export class UserService{
     async registerUser(data: CreateUserDTO){
         const checkEmail = await userRepository.getUserByEmail(data.email);
         if(checkEmail){
