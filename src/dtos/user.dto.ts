@@ -5,12 +5,13 @@ export const CreateUserDTO = UserSchema.pick(
     {
         name: true,
         email: true,
-        // phone: true,
+        // phoneNumber: true,
         password: true,
     }
 ).extend(
     {
-        confirmPassword: z.string().min(8)
+        confirmPassword: z.string().min(8),
+        role: z.enum(['admin', 'donor', 'volunteer']).default('donor'),
     }
 ).refine(
     (data) => data.password === data.confirmPassword,
