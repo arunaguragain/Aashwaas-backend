@@ -1,4 +1,4 @@
-import { CreateUserDTO, LoginUserDTO } from "../dtos/user.dto";
+import { CreateUserDTO, LoginUserDTO, UpdateUserDTO } from "../dtos/user.dto";
 import { UserRepository } from "../repositories/user.repository";
 import bcrypts from "bcryptjs";
 import { HttpError } from "../errors/http-error";
@@ -34,5 +34,28 @@ export class UserService{
         }; 
         const token = jwt.sign(payload, JWT_SECRET, {expiresIn: '30d'}); 
         return{token, existingUser}
+    }
+
+    async updateUser(id: string, updateData: UpdateUserDTO) {
+        const user = await userRepository.getUserById(id);
+        if (!user) {
+            throw new HttpError(404, "User not found");
+        }
+
+        // If password is being updated, hash it
+        if (updateData.password) {
+            updateData.password = await bcrypts.hash(updateData.password, 10);
+        }
+
+        // Check if email is being updated and if it's already in use
+        if (updateData.email && updateData.email !== user.email) {
+            const emailExists = await userRepository.getUserByEmail(updateData.email);
+            if (emailExists) {
+                throw new HttpError(403, "Email already in use");
+            }
+        }
+
+        const updatedUser = await userRepository.updateUser(id, updateData);
+        return updatedUser;
     }
 }
