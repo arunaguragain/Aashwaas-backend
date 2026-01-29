@@ -41,16 +41,18 @@ export const authorizedMiddleware = async(req: Request, res: Response, next: Nex
     }
 } 
 
-export const adminOnlyMiddleware = (req: Request, res:Response, next: NextFunction) => {
-    try{
-        if(req.user && req.user.role === "admin"){
-            next();
-        }else{
-            throw new HttpError(403, "Forbidden, admins only");
+export const adminMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        if (!req.user) {
+            throw new HttpError(401, 'Unauthorized no user info');
         }
-    }catch(error: Error | any) {
-        return res.status(error.statusCode || 403).json(
-            {success: false, message: error.message || "Forbidden"}
+        if (req.user.role !== 'admin') {
+            throw new HttpError(403, 'Forbidden not admin');
+        }
+        return next();
+    } catch (err: Error | any) {
+        return res.status(err.statusCode || 500).json(
+            { success: false, message: err.message }
         )
     }
 }
