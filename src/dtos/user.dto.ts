@@ -5,8 +5,9 @@ export const CreateUserDTO = UserSchema.pick(
     {
         name: true,
         email: true,
-        // phoneNumber: true,
+        phoneNumber: true,
         password: true,
+        profilePicture: true,
     }
 ).extend(
     {
@@ -28,3 +29,7 @@ export const LoginUserDTO = z.object({
 });
 
 export type LoginUserDTO = z.infer<typeof LoginUserDTO>;
+
+export const UpdateUserDTO = UserSchema.partial();
+
+export type UpdateUserDTO = z.infer<typeof UpdateUserDTO>;
