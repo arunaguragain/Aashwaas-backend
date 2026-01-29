@@ -3,6 +3,7 @@ import bodyParser from 'body-parser';
 import { connectDatabase } from './database/mongodb';
 import { PORT } from './config';
 import authRoutes from "./routes/auth.route";
+import adminUserRoutes from "./routes/admin/user.route";
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -26,6 +27,7 @@ app.get('/', (req: Request, res: Response) => {
     return res.status(200).json({ success: "true", message: "Welcome to the api of aashwaas" });
 }); 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin/users', adminUserRoutes);
 
 async function start() {
     await connectDatabase();
