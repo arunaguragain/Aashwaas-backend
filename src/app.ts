@@ -19,7 +19,7 @@ let corsOptions={
     //which url can access backend
     //put your frontend domain/url here
 }
-//origin:"*",//yo le sabai url lai access dincha
+//origin:"*",//this all gives access to url
 app.use(cors(corsOptions));
 
 app.use(bodyParser.json());
