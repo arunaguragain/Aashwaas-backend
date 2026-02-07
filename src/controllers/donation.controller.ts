@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { CreateDonationDTO, UpdateDonationDTO } from "../dtos/donation.dto";
 import z from "zod";
 import { DonationService } from "../services/donation.service";
+import { QueryParams } from "../types/query.type";
 
 let donationService = new DonationService();
 
@@ -41,9 +42,10 @@ export class DonationController {
 
     async getAllDonations(req: Request, res: Response, next: NextFunction) {
         try {
-            const donations = await donationService.getAllDonations();
+            const { page, size }: QueryParams = req.query;
+            const { donations, pagination } = await donationService.getAllDonations(page, size);
             return res.status(200).json(
-                { success: true, data: donations, message: "All donations retrieved" }
+                { success: true, data: donations, pagination, message: "All donations retrieved" }
             );
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
@@ -69,9 +71,10 @@ export class DonationController {
     async getDonationsByDonorId(req: Request, res: Response, next: NextFunction) {
         try {
             const donorId = req.params.donorId;
-            const donations = await donationService.getDonationsByDonorId(donorId);
+            const { page, size }: QueryParams = req.query;
+            const { donations, pagination } = await donationService.getDonationsByDonorId(donorId, page, size);
             return res.status(200).json(
-                { success: true, data: donations, message: "Donor donations retrieved" }
+                { success: true, data: donations, pagination, message: "Donor donations retrieved" }
             );
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
@@ -88,9 +91,10 @@ export class DonationController {
                     { success: false, message: "User not authenticated" }
                 );
             }
-            const donations = await donationService.getDonationsByDonorId(donorId);
+            const { page, size }: QueryParams = req.query;
+            const { donations, pagination } = await donationService.getDonationsByDonorId(donorId, page, size);
             return res.status(200).json(
-                { success: true, data: donations, message: "Your donations retrieved" }
+                { success: true, data: donations, pagination, message: "Your donations retrieved" }
             );
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(

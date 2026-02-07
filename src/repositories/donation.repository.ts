@@ -3,8 +3,8 @@ import { DonationModel, IDonation } from "../models/donation.model";
 export interface IDonationRepository {
     createDonation(donationData: Partial<IDonation>): Promise<IDonation>;
     getDonationById(id: string): Promise<IDonation | null>;
-    getAllDonations(): Promise<IDonation[]>;
-    getDonationsByDonorId(donorId: string): Promise<IDonation[]>;
+    getAllDonations(page: number, size: number): Promise<{ donations: IDonation[]; total: number }>;
+    getDonationsByDonorId(donorId: string, page: number, size: number): Promise<{ donations: IDonation[]; total: number }>;
     updateDonation(id: string, updateData: Partial<IDonation>): Promise<IDonation | null>;
     deleteDonation(id: string): Promise<boolean>;
 }
@@ -20,14 +20,29 @@ export class DonationRepository implements IDonationRepository {
         return donation;
     }
 
-    async getAllDonations(): Promise<IDonation[]> {
-        const donations = await DonationModel.find().populate('donorId', 'name email');
-        return donations;
+    async getAllDonations(page: number, size: number): Promise<{ donations: IDonation[]; total: number }> {
+        const [donations, total] = await Promise.all([
+            DonationModel.find()
+                .skip((page - 1) * size)
+                .limit(size)
+                .populate('donorId', 'name email'),
+            DonationModel.countDocuments(),
+        ]);
+
+        return { donations, total };
     }
 
-    async getDonationsByDonorId(donorId: string): Promise<IDonation[]> {
-        const donations = await DonationModel.find({ donorId }).populate('donorId', 'name email');
-        return donations;
+    async getDonationsByDonorId(donorId: string, page: number, size: number): Promise<{ donations: IDonation[]; total: number }> {
+        const filter = { donorId };
+        const [donations, total] = await Promise.all([
+            DonationModel.find(filter)
+                .skip((page - 1) * size)
+                .limit(size)
+                .populate('donorId', 'name email'),
+            DonationModel.countDocuments(filter),
+        ]);
+
+        return { donations, total };
     }
 
     async updateDonation(id: string, updateData: Partial<IDonation>): Promise<IDonation | null> {

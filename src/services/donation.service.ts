@@ -17,9 +17,18 @@ export class DonationService {
         return newDonation;
     }
 
-    async getAllDonations() {
-        const donations = await donationRepository.getAllDonations();
-        return donations;
+    async getAllDonations(page?: string, size?: string) {
+        const pageNumber = page ? parseInt(page) : 1;
+        const pageSize = size ? parseInt(size) : 10;
+        const { donations, total } = await donationRepository.getAllDonations(pageNumber, pageSize);
+        const pagination = {
+            page: pageNumber,
+            size: pageSize,
+            totalItems: total,
+            totalPages: Math.ceil(total / pageSize),
+        };
+
+        return { donations, pagination };
     }
 
     async getDonationById(id: string) {
@@ -33,12 +42,21 @@ export class DonationService {
         return donation;
     }
 
-    async getDonationsByDonorId(donorId: string) {
+    async getDonationsByDonorId(donorId: string, page?: string, size?: string) {
         if (!donorId) {
             throw new HttpError(400, "Donor ID is required");
         }
-        const donations = await donationRepository.getDonationsByDonorId(donorId);
-        return donations;
+        const pageNumber = page ? parseInt(page) : 1;
+        const pageSize = size ? parseInt(size) : 10;
+        const { donations, total } = await donationRepository.getDonationsByDonorId(donorId, pageNumber, pageSize);
+        const pagination = {
+            page: pageNumber,
+            size: pageSize,
+            totalItems: total,
+            totalPages: Math.ceil(total / pageSize),
+        };
+
+        return { donations, pagination };
     }
 
     async updateDonation(id: string, updateData: Partial<IDonation>) {
