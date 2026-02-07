@@ -4,6 +4,7 @@ import { connectDatabase } from './database/mongodb';
 import { PORT } from './config';
 import authRoutes from "./routes/auth.route";
 import adminUserRoutes from "./routes/admin/user.route";
+import adminNgoRoutes from "./routes/admin/ngo.route";
 import donationRoutes from "./routes/donation.route";
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -34,5 +35,6 @@ app.get('/', (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/admin/users', adminUserRoutes);
+app.use('/api/admin/ngos', adminNgoRoutes);
 
 export default app;

@@ -1,7 +1,7 @@
 import { CreateUserDTO, LoginUserDTO, UpdateUserDTO } from "../../dtos/user.dto";
 import { Request, Response, NextFunction } from "express";
 import z from "zod";
-import { AdminUserService } from "../../services/admin/user.services";
+import { AdminUserService } from "../../services/admin/user.service";
 import { QueryParams } from "../../types/query.type";
 
 let adminUserService = new AdminUserService();
