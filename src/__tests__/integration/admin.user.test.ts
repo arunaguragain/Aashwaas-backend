@@ -4,8 +4,6 @@ import app from '../../app';
 import { UserModel } from '../../models/user.model';
 
 describe('Admin User Integration Tests', () => { // Test Suite function
-    // jest.setTimeout(30000);
-
     const adminUser = {
         email: 'admin.test@example.com',
         password: 'Admin@1234',
