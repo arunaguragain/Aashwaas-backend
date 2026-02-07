@@ -42,6 +42,33 @@ describe('Authentication Integration Tests', () => { // Test Suite function
                 expect(response.status).toBe(403);
                 expect(response.body).toHaveProperty('success', false);
             })
+
+            test('should not register a new user with invalid email', async () => {
+                const response = await request(app)
+                    .post('/api/auth/register')
+                    .send({
+                        email: 'invalid-email',
+                        password: 'Test@1234',
+                        confirmPassword: 'Test@1234',
+                        name: 'Invalid Email User',
+                    });
+
+                expect(response.status).toBe(400);
+                expect(response.body).toHaveProperty('success', false);
+            })
+
+            test('should not register a new user without name', async () => {
+                const response = await request(app)
+                    .post('/api/auth/register')
+                    .send({
+                        email: 'missingname@example.com',
+                        password: 'Test@1234',
+                        confirmPassword: 'Test@1234',
+                    });
+
+                expect(response.status).toBe(400);
+                expect(response.body).toHaveProperty('success', false);
+            })
         });
 
         describe('POST /api/auth/login', () => {
