@@ -16,8 +16,10 @@ export class DonationController {
                 );
             }
 
-            if (req.file) {
-                parsedData.data.media = req.file.filename;
+            const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+            const file = req.file ?? files?.image?.[0] ?? files?.donationPhoto?.[0];
+            if (file) {
+                parsedData.data.media = file.filename;
             }
 
             const donationData: CreateDonationDTO = parsedData.data;
@@ -113,8 +115,10 @@ export class DonationController {
                 );
             }
 
-            if (req.file) {
-                parsedData.data.media = req.file.filename;
+            const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+            const file = req.file ?? files?.image?.[0] ?? files?.donationPhoto?.[0];
+            if (file) {
+                parsedData.data.media = file.filename;
             }
 
             const updateData: UpdateDonationDTO = parsedData.data;

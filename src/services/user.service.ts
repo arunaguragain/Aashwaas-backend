@@ -64,6 +64,14 @@ export class UserService{
         return updatedUser;
     }
 
+    async getUserById(id: string) {
+            const user = await userRepository.getUserById(id);
+            if (!user) {
+                throw new HttpError(404, "User not found");
+            }
+            return user;
+    }
+
     async sendResetPasswordEmail(email?: string) {
         if (!email) {
             throw new HttpError(400, "Email is required");

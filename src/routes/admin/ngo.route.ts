@@ -10,10 +10,16 @@ const router = Router();
 router.use(authorizedMiddleware);
 router.use(adminMiddleware);
 
-router.post("/", uploads.array("photos", 5), adminNgoController.createNgo);
+router.post("/", uploads.fields([
+	{ name: "image", maxCount: 1 },
+	{ name: "photo", maxCount: 1 },
+]), adminNgoController.createNgo);
 router.get("/", adminNgoController.getAllNgos);
 router.get("/:id", adminNgoController.getNgoById);
-router.put("/:id", uploads.array("photos", 5), adminNgoController.updateNgo);
+router.put("/:id", uploads.fields([
+	{ name: "image", maxCount: 1 },
+	{ name: "photo", maxCount: 1 },
+]), adminNgoController.updateNgo);
 router.delete("/:id", adminNgoController.deleteNgo);
 
 export default router;

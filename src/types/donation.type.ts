@@ -21,7 +21,7 @@ export const DonationSchema = z.object({
     pickupLocation: z.string().min(5, "Pickup location is required"),
     media: z.string().optional(),
     donorId: z.string().optional(),
-    status: z.enum(['pending', 'approved', 'completed', 'cancelled']).default('pending'),
+    status: z.enum(['pending', 'approved', 'assigned', 'completed', 'cancelled']).default('pending'),
 });
 
 export type DonationType = z.infer<typeof DonationSchema>;

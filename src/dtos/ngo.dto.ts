@@ -9,7 +9,7 @@ export const CreateNgoDTO = NgoSchema.pick({
     email: true,
     address: true,
     focusAreas: true,
-    photos: true,
+    photo: true,
 });
 
 export type CreateNgoDTO = z.infer<typeof CreateNgoDTO>;

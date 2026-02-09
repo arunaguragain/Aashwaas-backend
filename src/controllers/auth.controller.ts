@@ -80,6 +80,20 @@ export class AuthController {
         }
     }
 
+    async getUserById(req: Request, res: Response, next: NextFunction) {
+        try {
+            const userId = req.params.id;
+            const user = await userService.getUserById(userId);
+            return res.status(200).json(
+                { success: true, data: user, message: "Single User Retrieved" }
+            );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
     async sendResetPasswordEmail(req: Request, res: Response) {
         try {
             const email = req.body.email;

@@ -16,8 +16,10 @@ export class AdminNgoController {
                 );
             }
 
-            if (req.files && Array.isArray(req.files)) {
-                parsedData.data.photos = req.files.map((file) => file.filename);
+            const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+            const file = req.file ?? files?.image?.[0] ?? files?.photo?.[0];
+            if (file) {
+                parsedData.data.photo = file.filename;
             }
 
             const ngoData: CreateNgoDTO = parsedData.data;
@@ -75,8 +77,10 @@ export class AdminNgoController {
                 );
             }
 
-            if (req.files && Array.isArray(req.files)) {
-                parsedData.data.photos = req.files.map((file) => file.filename);
+            const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+            const file = req.file ?? files?.image?.[0] ?? files?.photo?.[0];
+            if (file) {
+                parsedData.data.photo = file.filename;
             }
 
             const updateData: UpdateNgoDTO = parsedData.data;

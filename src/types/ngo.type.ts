@@ -8,7 +8,7 @@ export const NgoSchema = z.object({
     email: z.email(),
     address: z.string().min(5, "Address is required"),
     focusAreas: z.array(z.string().min(2, "Focus area must be at least 2 characters")).optional().default([]),
-    photos: z.array(z.string()).optional().default([]),
+    photo: z.string().optional(),
 });
 
 export type NgoType = z.infer<typeof NgoSchema>;

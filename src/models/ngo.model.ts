@@ -9,7 +9,7 @@ const NgoSchema: Schema = new Schema<NgoType>({
     email: { type: String, required: true, unique: true, trim: true },
     address: { type: String, required: true, trim: true },
     focusAreas: [{ type: String, trim: true }],
-    photos: [{ type: String, trim: true }],
+    photo: { type: String, trim: true },
 },{
     timestamps: true,
 });

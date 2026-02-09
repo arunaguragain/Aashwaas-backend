@@ -5,7 +5,10 @@ import { PORT } from './config';
 import authRoutes from "./routes/auth.route";
 import adminUserRoutes from "./routes/admin/user.route";
 import adminNgoRoutes from "./routes/admin/ngo.route";
+import adminDonationRoutes from "./routes/admin/donation.route";
 import donationRoutes from "./routes/donation.route";
+import ngoRoutes from "./routes/ngo.route";
+import volunteerTaskRoutes from "./routes/volunteer/task.route";
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -34,7 +37,10 @@ app.get('/', (req: Request, res: Response) => {
 }); 
 app.use('/api/auth', authRoutes);
 app.use('/api/donations', donationRoutes);
+app.use('/api/ngos', ngoRoutes);
 app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/ngos', adminNgoRoutes);
+app.use('/api/admin/donations', adminDonationRoutes);
+app.use('/api/volunteer/tasks', volunteerTaskRoutes);
 
 export default app;

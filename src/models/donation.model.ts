@@ -10,7 +10,7 @@ const DonationSchema: Schema = new Schema<DonationType>({
     pickupLocation: { type: String, required: true, trim: true},
     media: { type: String, trim: true},
     donorId: { type: Schema.Types.ObjectId, required: true, ref: 'User'},
-    status: { type: String,enum: ['pending', 'approved', 'completed', 'cancelled'],default: 'pending'},
+    status: { type: String,enum: ['pending', 'approved', 'assigned', 'completed', 'cancelled'],default: 'pending'},
 }, {
     timestamps: true, 
 });
