@@ -16,7 +16,8 @@ export class DonationRepository implements IDonationRepository {
     }
 
     async getDonationById(id: string): Promise<IDonation | null> {
-        const donation = await DonationModel.findById(id).populate('donorId', 'name email');
+        const donation = await DonationModel.findById(id)
+            .populate('donorId', 'name email');
         return donation;
     }
 
@@ -50,7 +51,8 @@ export class DonationRepository implements IDonationRepository {
             id,
             updateData,
             { new: true }
-        ).populate('donorId', 'name email');
+        )
+            .populate('donorId', 'name email');
         return updatedDonation;
     }
 
