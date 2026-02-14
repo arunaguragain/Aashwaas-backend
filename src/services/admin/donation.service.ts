@@ -18,7 +18,39 @@ export class AdminDonationService {
             if (!id) {
                 throw new HttpError(400, "Donation ID is required");
             }
-            return await donationRepository.getDonationById(id);
+            const donation = await donationRepository.getDonationById(id);
+            if (!donation) {
+                throw new HttpError(404, "Donation not found");
+            }
+            // Fetch active assignment task for this donation
+            const activeTask = await taskRepository.getActiveTaskByDonationId(id);
+            let assignment = null;
+            if (activeTask) {
+                let volunteerId, volunteerName, ngoId, ngoName;
+                // Volunteer
+                if (typeof activeTask.volunteerId === 'object' && activeTask.volunteerId !== null && 'name' in activeTask.volunteerId) {
+                    volunteerId = activeTask.volunteerId._id;
+                    volunteerName = activeTask.volunteerId.name;
+                } else {
+                    volunteerId = activeTask.volunteerId;
+                    // Fetch user if not populated
+                    const volunteer = await userRepository.getUserById(String(volunteerId));
+                    volunteerName = volunteer ? volunteer.name : undefined;
+                }
+                // NGO
+                if (typeof activeTask.ngoId === 'object' && activeTask.ngoId !== null && 'name' in activeTask.ngoId) {
+                    ngoId = activeTask.ngoId._id;
+                    ngoName = activeTask.ngoId.name;
+                } else {
+                    ngoId = activeTask.ngoId;
+                    // Fetch NGO if not populated
+                    const ngo = await ngoRepository.getNgoById(String(ngoId));
+                    ngoName = ngo ? ngo.name : undefined;
+                }
+                assignment = { volunteerId, volunteerName, ngoId, ngoName };
+            }
+            // Return donation details with assignment info
+            return { ...donation.toObject(), assignment };
         }
 
         async deleteDonation(id: string) {
@@ -80,7 +112,8 @@ export class AdminDonationService {
 
         const activeTask = await taskRepository.getActiveTaskByDonationId(donationId);
         if (activeTask) {
-            throw new HttpError(400, "Donation already has an active task");
+            // Idempotent: return existing task
+            return { task: activeTask, alreadyAssigned: true };
         }
 
         const task = await taskRepository.createTask({
@@ -92,6 +125,6 @@ export class AdminDonationService {
         });
 
         await donationRepository.updateDonation(donationId, { status: "assigned" });
-        return task;
+        return { task, alreadyAssigned: false };
     }
 }

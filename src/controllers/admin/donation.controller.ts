@@ -74,15 +74,25 @@ export class AdminDonationController {
                 );
             }
 
-            const task = await adminDonationService.assignDonation(
+            const { task, alreadyAssigned } = await adminDonationService.assignDonation(
                 donationId,
                 parsedData.data.volunteerId,
                 parsedData.data.ngoId
             );
 
-            return res.status(201).json(
-                { success: true, message: "Volunteer and NGO assigned", data: task }
-            );
+            if (alreadyAssigned) {
+                return res.status(200).json({
+                    success: true,
+                    message: "Volunteer and NGO already assigned",
+                    data: task
+                });
+            }
+
+            return res.status(201).json({
+                success: true,
+                message: "Volunteer and NGO assigned",
+                data: task
+            });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
