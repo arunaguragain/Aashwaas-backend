@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.route";
 import adminUserRoutes from "./routes/admin/user.route";
 import adminNgoRoutes from "./routes/admin/ngo.route";
 import adminDonationRoutes from "./routes/admin/donation.route";
+import adminTaskRoutes from "./routes/admin/task.route";
 import donationRoutes from "./routes/donation.route";
 import ngoRoutes from "./routes/ngo.route";
 import volunteerTaskRoutes from "./routes/volunteer/task.route";
@@ -41,6 +42,7 @@ app.use('/api/ngos', ngoRoutes);
 app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/ngos', adminNgoRoutes);
 app.use('/api/admin/donations', adminDonationRoutes);
+app.use('/api/admin/tasks', adminTaskRoutes);
 app.use('/api/volunteer/tasks', volunteerTaskRoutes);
 
 export default app;
