@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AdminTaskService } from '../../services/admin/task.service';
+import { AssignTaskDTO } from '../../dtos/task.dto';
+import z from 'zod';
 
 let adminTaskService = new AdminTaskService();
 
@@ -41,7 +43,17 @@ export class AdminTaskController {
 
   async createTask(req: Request, res: Response, next: NextFunction) {
     try {
-      const newTask = await adminTaskService.createTask(req.body);
+      // console.log('Task creation request body:', req.body);
+      // console.log('typeof req.body.donationId:', typeof req.body.donationId);
+      const parsedData = AssignTaskDTO.safeParse(req.body);
+      if (!parsedData.success) {
+        console.log('Full Zod error:', parsedData.error);
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedData.error)
+        });
+      }
+      const newTask = await adminTaskService.createTask(parsedData.data);
       return res.status(201).json({
         success: true,
         message: 'Task created',
@@ -58,7 +70,14 @@ export class AdminTaskController {
   async updateTask(req: Request, res: Response, next: NextFunction) {
     try {
       const taskId = req.params.id;
-      const updatedTask = await adminTaskService.updateTask(taskId, req.body);
+      const parsedData = AssignTaskDTO.safeParse(req.body);
+      if (!parsedData.success) {
+        return res.status(400).json({
+          success: false,
+          message: z.prettifyError(parsedData.error)
+        });
+      }
+      const updatedTask = await adminTaskService.updateTask(taskId, parsedData.data);
       return res.status(200).json({
         success: true,
         message: 'Task updated',

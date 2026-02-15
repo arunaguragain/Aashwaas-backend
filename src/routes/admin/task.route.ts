@@ -11,10 +11,10 @@ router.use(authorizedMiddleware);
 router.use(adminMiddleware);
 
 
-router.get('/', (req, res, next) => adminTaskController.getAllTasks(req, res, next));
-router.get('/:id', (req, res, next) => adminTaskController.getTaskById(req, res, next));
-router.post('/', (req, res, next) => adminTaskController.createTask(req, res, next));
-router.put('/:id', (req, res, next) => adminTaskController.updateTask(req, res, next));
-router.delete('/:id', (req, res, next) => adminTaskController.deleteTask(req, res, next));
+router.get('/', adminTaskController.getAllTasks);
+router.get('/:id', adminTaskController.getTaskById);
+router.post('/', adminTaskController.createTask);
+router.put('/:id', adminTaskController.updateTask);
+router.delete('/:id', adminTaskController.deleteTask);
 
 export default router;

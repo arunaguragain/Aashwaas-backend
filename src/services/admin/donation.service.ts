@@ -77,7 +77,7 @@ export class AdminDonationService {
         return updatedDonation;
     }
 
-    async assignDonation(donationId: string, volunteerId: string, ngoId: string) {
+    async assignDonation(donationId: string, volunteerId: string, ngoId: string, title: string) {
         if (!donationId) {
             throw new HttpError(400, "Donation ID is required");
         }
@@ -117,6 +117,7 @@ export class AdminDonationService {
         }
 
         const task = await taskRepository.createTask({
+            title,
             donationId: donation._id,
             volunteerId: volunteer._id,
             ngoId: ngo._id,

@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 const TaskSchema: Schema = new Schema({
+    title: { type: String, required: true, trim: true },
     donationId: { type: Schema.Types.ObjectId, required: true, ref: "Donation" },
     volunteerId: { type: Schema.Types.ObjectId, required: true, ref: "User" },
     ngoId: { type: Schema.Types.ObjectId, required: false, ref: "Ngo" },
@@ -18,6 +19,7 @@ const TaskSchema: Schema = new Schema({
 
 export interface ITask extends Document {
     _id: mongoose.Types.ObjectId;
+    title: string;
     donationId: mongoose.Types.ObjectId;
     volunteerId: mongoose.Types.ObjectId;
     ngoId?: mongoose.Types.ObjectId;

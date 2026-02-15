@@ -1,7 +1,6 @@
-
-import { TaskRepository } from '../../repositories/task.repository';
+import mongoose from 'mongoose';
 import { HttpError } from '../../errors/http-error';
-
+import { TaskRepository } from '../../repositories/task.repository';
 let taskRepository = new TaskRepository();
 
 export class AdminTaskService {
@@ -31,17 +30,37 @@ export class AdminTaskService {
     return task;
   }
 
-  async createTask(data: any) {
-    const newTask = await taskRepository.createTask(data);
+  async createTask(data: { title?: string; donationId: string; volunteerId: string; ngoId: string }) {
+    if (!data.volunteerId) {
+      throw new HttpError(400, 'Volunteer ID is required');
+    }
+    if (!data.donationId) {
+      throw new HttpError(400, 'Donation ID is required');
+    }
+    // Convert string IDs to ObjectId
+    const taskData = {
+      ...data,
+      donationId: new mongoose.Types.ObjectId(data.donationId),
+      volunteerId: new mongoose.Types.ObjectId(data.volunteerId),
+      ngoId: data.ngoId ? new mongoose.Types.ObjectId(data.ngoId) : undefined,
+    };
+    const newTask = await taskRepository.createTask(taskData);
     return newTask;
   }
 
-  async updateTask(id: string, data: any) {
+  async updateTask(id: string, data: { title?: string; donationId: string; volunteerId: string; ngoId: string }) {
     const task = await taskRepository.getTaskById(id);
     if (!task) {
       throw new HttpError(404, 'Task not found');
     }
-    const updated = await taskRepository.updateTask(id, data);
+    // Convert string IDs to ObjectId
+    const updateData = {
+      ...data,
+      donationId: new mongoose.Types.ObjectId(data.donationId),
+      volunteerId: new mongoose.Types.ObjectId(data.volunteerId),
+      ngoId: data.ngoId ? new mongoose.Types.ObjectId(data.ngoId) : undefined,
+    };
+    const updated = await taskRepository.updateTask(id, updateData);
     return updated;
   }
 

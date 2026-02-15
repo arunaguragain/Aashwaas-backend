@@ -73,11 +73,13 @@ export class AdminDonationController {
                     { success: false, message: z.prettifyError(parsedData.error) }
                 );
             }
-
+            // Use provided title or a default
+            const title = parsedData.data.title || "Assigned Task";
             const { task, alreadyAssigned } = await adminDonationService.assignDonation(
                 donationId,
                 parsedData.data.volunteerId,
-                parsedData.data.ngoId
+                parsedData.data.ngoId,
+                title
             );
 
             if (alreadyAssigned) {
