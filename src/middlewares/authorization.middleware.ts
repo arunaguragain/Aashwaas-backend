@@ -57,18 +57,3 @@ export const adminMiddleware = async (req: Request, res: Response, next: NextFun
     }
 }
 
-export const volunteerMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        if (!req.user) {
-            throw new HttpError(401, 'Unauthorized no user info');
-        }
-        if (req.user.role !== 'volunteer') {
-            throw new HttpError(403, 'Forbidden not volunteer');
-        }
-        return next();
-    } catch (err: Error | any) {
-        return res.status(err.statusCode || 500).json(
-            { success: false, message: err.message }
-        )
-    }
-}

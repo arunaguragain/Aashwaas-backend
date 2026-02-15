@@ -6,6 +6,7 @@ export interface ITaskRepository {
     getTasksByVolunteerId(volunteerId: string): Promise<ITask[]>;
     getActiveTaskByDonationId(donationId: string): Promise<ITask | null>;
     updateTask(id: string, updateData: Partial<ITask>): Promise<ITask | null>;
+    deleteTask(id: string): Promise<ITask | null>;
 }
 
 export class TaskRepository implements ITaskRepository {
@@ -40,6 +41,14 @@ export class TaskRepository implements ITaskRepository {
 
     async updateTask(id: string, updateData: Partial<ITask>): Promise<ITask | null> {
         const task = await TaskModel.findByIdAndUpdate(id, updateData, { new: true })
+            .populate("donationId")
+            .populate("volunteerId", "name email role")
+            .populate("ngoId", "name email");
+        return task;
+    }
+
+    async deleteTask(id: string): Promise<ITask | null> {
+        const task = await TaskModel.findByIdAndDelete(id)
             .populate("donationId")
             .populate("volunteerId", "name email role")
             .populate("ngoId", "name email");

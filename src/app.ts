@@ -45,6 +45,6 @@ app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/ngos', adminNgoRoutes);
 app.use('/api/admin/donations', adminDonationRoutes);
 app.use('/api/admin/tasks', adminTaskRoutes);
-app.use('/api/volunteer/tasks', volunteerTaskRoutes);
+app.use('/api/tasks', volunteerTaskRoutes);
 
 export default app;

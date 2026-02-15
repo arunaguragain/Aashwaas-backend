@@ -70,4 +70,31 @@ export class VolunteerTaskService {
         await donationRepository.updateDonation(donationId, { status: "completed" });
         return updatedTask;
     }
+
+    async cancelTask(taskId: string, volunteerId: string) {
+        if (!taskId) {
+            throw new HttpError(400, "Task ID is required");
+        }
+        if (!volunteerId) {
+            throw new HttpError(400, "Volunteer ID is required");
+        }
+
+        const task = await taskRepository.getTaskById(taskId);
+        if (!task) {
+            throw new HttpError(404, "Task not found");
+        }
+        const taskVolunteerId = (task.volunteerId as any)?._id?.toString() ?? task.volunteerId.toString();
+        if (taskVolunteerId !== volunteerId) {
+            throw new HttpError(403, "Not authorized for this task");
+        }
+
+        // Allow cancellation for assigned or accepted tasks
+        if (!["assigned", "accepted"].includes(task.status)) {
+            throw new HttpError(400, "Only assigned or accepted tasks can be cancelled");
+        }
+
+        // Delete the task
+        const deleted = await taskRepository.deleteTask(taskId);
+        return deleted;
+    }
 }
