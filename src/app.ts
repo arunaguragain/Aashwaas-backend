@@ -8,6 +8,7 @@ import adminNgoRoutes from "./routes/admin/ngo.route";
 import adminDonationRoutes from "./routes/admin/donation.route";
 import adminTaskRoutes from "./routes/admin/task.route";
 import donationRoutes from "./routes/donation.route";
+import wishlistRoutes from "./routes/wishlist.route";
 import ngoRoutes from "./routes/ngo.route";
 import volunteerTaskRoutes from "./routes/volunteer/task.route";
 import cors from 'cors';
@@ -38,6 +39,7 @@ app.get('/', (req: Request, res: Response) => {
 }); 
 app.use('/api/auth', authRoutes);
 app.use('/api/donations', donationRoutes);
+app.use('/api/wishlists', wishlistRoutes);
 app.use('/api/ngos', ngoRoutes);
 app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/ngos', adminNgoRoutes);

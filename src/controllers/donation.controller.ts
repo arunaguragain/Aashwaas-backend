@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { CreateDonationDTO, UpdateDonationDTO } from "../dtos/donation.dto";
 import z from "zod";
-import { DonationService } from "../services/donation.service";
 import { QueryParams } from "../types/query.type";
+import { DonationService } from "../services/donation.service";
 
 let donationService = new DonationService();
 
