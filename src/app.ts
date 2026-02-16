@@ -11,6 +11,7 @@ import donationRoutes from "./routes/donation.route";
 import wishlistRoutes from "./routes/wishlist.route";
 import ngoRoutes from "./routes/ngo.route";
 import volunteerTaskRoutes from "./routes/volunteer/task.route";
+import reviewRoutes from "./routes/review.route";
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -46,5 +47,6 @@ app.use('/api/admin/ngos', adminNgoRoutes);
 app.use('/api/admin/donations', adminDonationRoutes);
 app.use('/api/admin/tasks', adminTaskRoutes);
 app.use('/api/tasks', volunteerTaskRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 export default app;
