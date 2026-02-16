@@ -58,17 +58,17 @@ describe('Volunteer Task Integration Tests', () => {
                 description: 'One chair',
                 quantity: '1',
                 condition: 'Good',
-                pickupLocation: 'Test Ave',
+                pickupLocation: 'Test , city',
             });
         donationId = donationRes.body.data?._id ?? '';
 
         // create NGO directly to satisfy task data
         const ngo = await NgoModel.create({
             name: 'Test NGO',
-            registrationNumber: `REG-${Date.now()}`,
+            registrationNumber: `97854670`,
             contactPerson: 'Contact',
             phone: '9800000000',
-            email: `ngo${Date.now()}@example.com`,
+            email: `ngo@example.com`,
             address: 'NGO Address',
             focusAreas: ['education'],
         });
