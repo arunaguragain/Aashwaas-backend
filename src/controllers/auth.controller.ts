@@ -7,6 +7,16 @@ import { HttpError } from "../errors/http-error";
 let userService = new UserService();
 
 export class AuthController {
+    async whoami(req: Request, res: Response) {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ success: false, message: "Unauthorized" });
+            }
+            return res.status(200).json({ success: true, data: req.user, message: "Authenticated user info" });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json({ success: false, message: error.message || "Internal Server Error" });
+        }
+    }
     async register(req: Request, res: Response) {
         try {
             const parsedData = CreateUserDTO.safeParse(req.body); 
