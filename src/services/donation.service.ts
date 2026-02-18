@@ -2,9 +2,13 @@ import { DonationRepository } from "../repositories/donation.repository";
 import { IDonation } from "../models/donation.model";
 import { HttpError } from "../errors/http-error";
 
-let donationRepository = new DonationRepository();
-
 export class DonationService {
+    private donationRepository: DonationRepository;
+
+    constructor(donationRepository?: DonationRepository) {
+        this.donationRepository = donationRepository || new DonationRepository();
+    }
+
     async createDonation(donationData: Partial<IDonation>, donorId: string) {
         if (!donorId) {
             throw new HttpError(400, "Donor ID is required");
@@ -13,14 +17,14 @@ export class DonationService {
         donationData.donorId = donorId as any;
         donationData.status = donationData.status || 'pending';
 
-        const newDonation = await donationRepository.createDonation(donationData);
+        const newDonation = await this.donationRepository.createDonation(donationData);
         return newDonation;
     }
 
     async getAllDonations(page?: string, size?: string) {
         const pageNumber = page ? parseInt(page) : 1;
         const pageSize = size ? parseInt(size) : 10;
-        const { donations, total } = await donationRepository.getAllDonations(pageNumber, pageSize);
+        const { donations, total } = await this.donationRepository.getAllDonations(pageNumber, pageSize);
         const pagination = {
             page: pageNumber,
             size: pageSize,
@@ -35,7 +39,7 @@ export class DonationService {
         if (!id) {
             throw new HttpError(400, "Donation ID is required");
         }
-        const donation = await donationRepository.getDonationById(id);
+        const donation = await this.donationRepository.getDonationById(id);
         if (!donation) {
             throw new HttpError(404, "Donation not found");
         }
@@ -48,7 +52,7 @@ export class DonationService {
         }
         const pageNumber = page ? parseInt(page) : 1;
         const pageSize = size ? parseInt(size) : 10;
-        const { donations, total } = await donationRepository.getDonationsByDonorId(donorId, pageNumber, pageSize);
+        const { donations, total } = await this.donationRepository.getDonationsByDonorId(donorId, pageNumber, pageSize);
         const pagination = {
             page: pageNumber,
             size: pageSize,
@@ -63,12 +67,12 @@ export class DonationService {
         if (!id) {
             throw new HttpError(400, "Donation ID is required");
         }
-        const donation = await donationRepository.getDonationById(id);
+        const donation = await this.donationRepository.getDonationById(id);
         if (!donation) {
             throw new HttpError(404, "Donation not found");
         }
 
-        const updatedDonation = await donationRepository.updateDonation(id, updateData);
+        const updatedDonation = await this.donationRepository.updateDonation(id, updateData);
         return updatedDonation;
     }
 
@@ -76,11 +80,11 @@ export class DonationService {
         if (!id) {
             throw new HttpError(400, "Donation ID is required");
         }
-        const donation = await donationRepository.getDonationById(id);
+        const donation = await this.donationRepository.getDonationById(id);
         if (!donation) {
             throw new HttpError(404, "Donation not found");
         }
-        const deleted = await donationRepository.deleteDonation(id);
+        const deleted = await this.donationRepository.deleteDonation(id);
         return deleted;
     }
 }
