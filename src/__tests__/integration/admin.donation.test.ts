@@ -50,8 +50,13 @@ describe('Admin Donation Integration Tests', () => {
         donationId = donationRes.body.data?._id ?? '';
     });
     afterAll(async () => {
-        await DonationModel.deleteMany({});
-        await UserModel.deleteMany({ email: { $in: [adminUser.email, donorUser.email] } });
+        try {
+            console.log('TEST-DEBUG: running cleanup for test-created documents only');
+            await DonationModel.deleteOne({ _id: donationId });
+            await UserModel.deleteMany({ email: { $in: [adminUser.email, donorUser.email] } });
+        } catch (err) {
+            console.error('Cleanup failed:', err);
+        }
     });
     test('should list all donations for admin', async () => {
         const res = await request(app)
