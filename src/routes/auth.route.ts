@@ -15,6 +15,6 @@ router.post("/request-password-reset",
 router.post("/reset-password/:token", authController.resetPassword);
 
 router.get("/whoami", authorizedMiddleware, authController.whoami)
-router.get(":id", authorizedMiddleware, authController.getUserById)
+router.get("/:id", authorizedMiddleware, authController.getUserById)
 
 export default router;

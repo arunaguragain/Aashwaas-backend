@@ -85,7 +85,6 @@ export class UserService{
         const html = `<p>Click <a href="${resetLink}">here</a> to reset your password. This link will expire in 1 hour.</p>`;
         await sendEmail(user.email, "Password Reset", html);
         return user;
-
     }
 
     async resetPassword(token?: string, newPassword?: string) {

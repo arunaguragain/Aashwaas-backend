@@ -22,7 +22,7 @@ console.log(process.env.PORT);
 const app: Application = express();
 
 let corsOptions={
-    origin:["http://localhost:3000","http://localhost:3003"],
+    origin:["http://localhost:3000","http://localhost:3003", "http://192.168.137.1:3000"],
     //which url can access backend
     //put your frontend domain/url here
 }
