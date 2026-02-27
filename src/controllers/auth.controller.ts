@@ -3,8 +3,12 @@ import { CreateUserDTO, LoginUserDTO, UpdateUserDTO } from "../dtos/user.dto";
 import { Request, Response, NextFunction } from "express";
 import z from "zod";
 import { HttpError } from "../errors/http-error";
+import { OAuth2Client } from "google-auth-library";
+import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "../config";
 
 let userService = new UserService();
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export class AuthController {
     async whoami(req: Request, res: Response) {
@@ -55,6 +59,37 @@ export class AuthController {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
             );
+        }
+    }
+
+    async googleSignIn(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { idToken } = req.body;
+            if (!idToken) {
+                return res.status(400).json({ success: false, message: "idToken is required" });
+            }
+            const ticket = await googleClient.verifyIdToken({
+                idToken,
+                audience: process.env.GOOGLE_CLIENT_ID,
+            });
+            const payload = ticket.getPayload();
+            if (!payload || !payload.email) {
+                return res.status(400).json({ success: false, message: "Invalid Google token" });
+            }
+            // Optional: reject if email is not verified by Google
+            if (payload.email_verified === false) {
+                return res.status(400).json({ success: false, message: "Google email not verified" });
+            }
+
+            const user = await userService.findOrCreateFromGoogle({
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture,
+            });
+            const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
+            return res.status(200).json({ success: true, message: "Login successful", data: user, token });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json({ success: false, message: error.message || "Internal Server Error" });
         }
     }
 

@@ -8,6 +8,7 @@ const router = Router();
 
 router.post("/register", authController.register)
 router.post("/login", authController.login)
+router.post("/google", authController.googleSignIn)
 router.put("/:id", authorizedMiddleware, uploads.single("image"), authController.updateProfile)
 
 router.post("/request-password-reset", 

@@ -105,4 +105,23 @@ export class UserService{
             throw new HttpError(400, "Invalid or expired token");
         }
     }
+
+    async findOrCreateFromGoogle(data: { email: string; name?: string; picture?: string }) {
+        const { email, name, picture } = data;
+        if (!email) {
+            throw new HttpError(400, "Email is required");
+        }
+        const existingUser = await userRepository.getUserByEmail(email);
+        if (existingUser) return existingUser;
+
+        const randomPassword = Math.random().toString(36).slice(-8);
+        const hashedPassword = await bcrypts.hash(randomPassword, 10);
+        const newUser = await userRepository.createUser({
+            email,
+            name: name || "Google User",
+            password: hashedPassword,
+            profilePicture: picture || undefined,
+        });
+        return newUser;
+    }
 }
