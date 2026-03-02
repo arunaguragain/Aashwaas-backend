@@ -199,30 +199,39 @@ describe('AdminDonationService', () => {
       const r = await service.deleteDonation('someid');
       expect(r).toBe(true);
     });
-  });
 
-  test("AdminDonationService.assignDonation - already assigned and new assignment", async () => {
-    const svc = new AdminDonationService();
+    test("AdminDonationService.assignDonation - already assigned and new assignment", async () => {
+      jest.resetModules();
+      const { AdminDonationService } = require('../../../../services/admin/donation.service');
+      const { DonationRepository } = require('../../../../repositories/donation.repository');
+      const { TaskRepository } = require('../../../../repositories/task.repository');
+      const { UserRepository } = require('../../../../repositories/user.repository');
+      const { NgoRepository } = require('../../../../repositories/ngo.repository');
+      const svc = new AdminDonationService();
 
-    const donation: any = { _id: 'd1', status: 'approved', toObject: () => ({ _id: 'd1' }) };
-    jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValue(donation as any);
+      const donation: any = { _id: 'd1', status: 'approved', toObject: () => ({ _id: 'd1' }) };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValue(donation as any);
 
-    const activeTask: any = { _id: 't1', volunteerId: 'v1', ngoId: 'n1' };
-    // mock volunteer and ngo lookups (service checks these before active task)
-    jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue({ _id: 'v1', role: 'volunteer', name: 'vol' } as any);
-    jest.spyOn(NgoRepository.prototype, 'getNgoById').mockResolvedValue({ _id: 'n1', name: 'ngo' } as any);
-    jest.spyOn(TaskRepository.prototype, 'getActiveTaskByDonationId').mockResolvedValue(activeTask as any);
-    const res1 = await svc.assignDonation('d1', 'v1', 'n1', 'title');
-    expect(res1.alreadyAssigned).toBe(true);
+      const activeTask: any = { _id: 't1', volunteerId: 'v1', ngoId: 'n1' };
+      // mock volunteer and ngo lookups (service checks these before active task)
+      jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue({ _id: 'v1', role: 'volunteer', name: 'vol' } as any);
+      jest.spyOn(NgoRepository.prototype, 'getNgoById').mockResolvedValue({ _id: 'n1', name: 'ngo' } as any);
+      const getActiveSpy = jest.spyOn(TaskRepository.prototype, 'getActiveTaskByDonationId').mockResolvedValue(activeTask as any);
+      const createSpy = jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValue({ _id: 'should-not' } as any);
 
-    jest.spyOn(TaskRepository.prototype, 'getActiveTaskByDonationId').mockResolvedValue(null as any);
-    jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue({ _id: 'v1', role: 'volunteer', name: 'vol' } as any);
-    jest.spyOn(NgoRepository.prototype, 'getNgoById').mockResolvedValue({ _id: 'n1', name: 'ngo' } as any);
-    jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValue({ _id: 't2' } as any);
-    jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValue({ status: 'assigned' } as any);
+      const res1 = await svc.assignDonation('d1', 'v1', 'n1', 'title');
+      expect(res1.task).toEqual(activeTask);
+      expect(getActiveSpy).toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
 
-    const res2 = await svc.assignDonation('d1', 'v1', 'n1', 'title');
-    expect(res2.alreadyAssigned).toBe(false);
-    expect(res2.task).toBeDefined();
+      // now simulate second assignment path
+      getActiveSpy.mockResolvedValue(null as any);
+      jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValue({ _id: 't2' } as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValue({ status: 'assigned' } as any);
+
+      const res2 = await svc.assignDonation('d1', 'v1', 'n1', 'title');
+      expect(res2.alreadyAssigned).toBe(false);
+      expect(res2.task).toBeDefined();
+    });
   });
 });

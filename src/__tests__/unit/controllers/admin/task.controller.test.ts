@@ -69,23 +69,20 @@ describe('AdminTaskController', () => {
   });
 
   test("AdminTaskController.deleteTask - error handling", async () => {
-    const { AdminTaskController } = require("../../controllers/admin/task.controller");
-    const ctrl = new AdminTaskController();
+    // reuse the controller instance created by beforeEach
     const req: any = { params: { id: 't1' } };
     const res = mockRes();
     jest.spyOn(AdminTaskService.prototype, 'deleteTask').mockRejectedValue({ statusCode: 403, message: 'nope' });
-    await ctrl.deleteTask(req, res, jest.fn());
+    await controller.deleteTask(req, res, jest.fn());
     // ensure catch branch executed (status code may default 500 if not set)
     expect(res.status).toHaveBeenCalled();
   });
 
   test("AdminTaskController.updateTask - error handling", async () => {
-    const { AdminTaskController } = require("../../controllers/admin/task.controller");
-    const ctrl = new AdminTaskController();
     const req: any = { params: { id: 't1' }, body: {} };
     const res = mockRes();
     jest.spyOn(AdminTaskService.prototype, 'updateTask').mockRejectedValue({ statusCode: 501, message: 'oops' });
-    await ctrl.updateTask(req, res, jest.fn());
+    await controller.updateTask(req, res, jest.fn());
     expect(res.status).toHaveBeenCalled();
   });
 
