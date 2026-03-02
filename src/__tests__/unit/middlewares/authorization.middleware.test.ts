@@ -1,105 +1,164 @@
-// Mock UserRepository before importing the middleware so the module-level instance is mocked
-const mockGetUserById = jest.fn();
-jest.mock('../../../repositories/user.repository', () => ({
-  UserRepository: jest.fn().mockImplementation(() => ({
-    getUserById: mockGetUserById,
-  })),
-}));
-
-import jwt from 'jsonwebtoken';
+// mock jsonwebtoken so we can control `verify` behavior
+jest.mock('jsonwebtoken', () => ({ verify: jest.fn() }));
 import { authorizedMiddleware, adminMiddleware } from '../../../middlewares/authorization.middleware';
+import * as jwt from 'jsonwebtoken';
+import { UserRepository } from '../../../repositories/user.repository';
 
-describe('authorizedMiddleware', () => {
-  let req: any;
-  let res: any;
-  let next: jest.Mock;
+function mockRes() {
+  const res: any = {};
+  res.status = jest.fn().mockReturnValue(res);
+  res.json = jest.fn().mockReturnValue(res);
+  return res;
+}
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    req = { headers: {} } as any;
-    res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
-    next = jest.fn();
-  });
+describe('authorization middleware', () => {
+  beforeEach(() => jest.restoreAllMocks());
 
-  test('calls next and attaches user when token valid and user exists', async () => {
-    req.headers.authorization = 'Bearer validtoken';
-    jest.spyOn(jwt, 'verify').mockReturnValue({ id: 'u1' } as any);
-    mockGetUserById.mockResolvedValueOnce({ _id: 'u1', role: 'donor' });
+  test('returns 401 when authorization header missing', async () => {
+    const req: any = { headers: {} };
+    const res = mockRes();
+    const next = jest.fn();
 
-    await authorizedMiddleware(req, res, next);
-
-    expect(next).toHaveBeenCalled();
-    expect(req.user).toEqual({ _id: 'u1', role: 'donor' });
-  });
-
-  test('returns 401 when authorization header missing or malformed', async () => {
-    req.headers.authorization = undefined;
-    await authorizedMiddleware(req, res, next);
+    await authorizedMiddleware(req, res, next as any);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Unauthorized, Header malformed' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: 'Unauthorized, Header malformed' }));
+    expect(next).not.toHaveBeenCalled();
   });
 
   test('returns 401 when token missing after Bearer', async () => {
-    req.headers.authorization = 'Bearer ';
-    await authorizedMiddleware(req, res, next);
+    const req: any = { headers: { authorization: 'Bearer ' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await authorizedMiddleware(req, res, next as any);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Unauthorized, Token missing' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Unauthorized, Token missing' }));
+    expect(next).not.toHaveBeenCalled();
   });
 
-  test('returns 401 when token invalid (no id)', async () => {
-    req.headers.authorization = 'Bearer badtoken';
-    jest.spyOn(jwt, 'verify').mockReturnValue({} as any);
-    await authorizedMiddleware(req, res, next);
+  test('returns 401 when jwt.verify throws', async () => {
+    const req: any = { headers: { authorization: 'Bearer token' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    (jwt as any).verify.mockImplementation(() => { throw new Error('jwt malformed'); });
+
+    await authorizedMiddleware(req, res, next as any);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Unauthorized, Token invalid' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'jwt malformed' }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('jwt.verify error without message yields default', async () => {
+    const req: any = { headers: { authorization: 'Bearer token' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    (jwt as any).verify.mockImplementation(() => { throw {}; });
+
+    await authorizedMiddleware(req, res, next as any);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Unauthorized' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('returns 401 when decoded token lacks id', async () => {
+    const req: any = { headers: { authorization: 'Bearer token' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    (jwt as any).verify.mockReturnValue({});
+
+    await authorizedMiddleware(req, res, next as any);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Unauthorized, Token invalid' }));
+    expect(next).not.toHaveBeenCalled();
   });
 
   test('returns 401 when user not found', async () => {
-    req.headers.authorization = 'Bearer validtoken';
-    jest.spyOn(jwt, 'verify').mockReturnValue({ id: 'u-notfound' } as any);
-    mockGetUserById.mockResolvedValueOnce(null);
+    const req: any = { headers: { authorization: 'Bearer token' } };
+    const res = mockRes();
+    const next = jest.fn();
 
-    await authorizedMiddleware(req, res, next);
+    (jwt as any).verify.mockReturnValue({ id: 'u1' });
+    jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue(null as any);
+
+    await authorizedMiddleware(req, res, next as any);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Unauthorized, User not found' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Unauthorized, User not found' }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('calls next and assigns req.user on success', async () => {
+    const user = { _id: 'u1', role: 'user' } as any;
+    const req: any = { headers: { authorization: 'Bearer token' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    (jwt as any).verify.mockReturnValue({ id: 'u1' });
+    jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue(user);
+
+    await authorizedMiddleware(req, res, next as any);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user).toEqual(user);
   });
 });
 
 describe('adminMiddleware', () => {
-  let req: any;
-  let res: any;
-  let next: jest.Mock;
+  beforeEach(() => jest.restoreAllMocks());
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
-    next = jest.fn();
-  });
+  test('returns 401 when req.user missing', async () => {
+    const req: any = {};
+    const res = mockRes();
+    const next = jest.fn();
 
-  test('returns 401 when no user info', async () => {
-    req = {} as any;
-    await adminMiddleware(req, res, next);
+    await adminMiddleware(req, res, next as any);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Unauthorized no user info' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Unauthorized no user info' }));
+    expect(next).not.toHaveBeenCalled();
   });
 
   test('returns 403 when user is not admin', async () => {
-    req = { user: { role: 'donor' } } as any;
-    await adminMiddleware(req, res, next);
+    const req: any = { user: { role: 'user' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await adminMiddleware(req, res, next as any);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Forbidden not admin' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: 'Forbidden not admin' }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('adminMiddleware catches generic error without statusCode', async () => {
+    // trigger a runtime error inside middleware by throwing from getter
+    const req: any = { user: {} };
+    Object.defineProperty(req.user, 'role', { get: () => { throw {}; } });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await adminMiddleware(req, res, next as any);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: undefined });
   });
 
   test('calls next when user is admin', async () => {
-    req = { user: { role: 'admin' } } as any;
-    await adminMiddleware(req, res, next);
+    const req: any = { user: { role: 'admin' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await adminMiddleware(req, res, next as any);
 
     expect(next).toHaveBeenCalled();
   });
+
 });
+ 
