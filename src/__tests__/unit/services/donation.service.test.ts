@@ -81,6 +81,17 @@ describe('DonationService', () => {
       expect(result.pagination).toEqual({ page: 1, size: 5, totalItems: 7, totalPages: Math.ceil(7 / 5) });
       expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 1, 5);
     });
+
+    test('returns donations and default pagination when page/size omitted', async () => {
+      const donations = [{ _id: 'd2' }];
+      const getByDonorSpy = jest.spyOn(DonationRepository.prototype, 'getDonationsByDonorId').mockResolvedValueOnce({ donations, total: 12 } as any);
+
+      const result = await service.getDonationsByDonorId('donor1');
+
+      expect(result.donations).toBe(donations);
+      expect(result.pagination).toEqual({ page: 1, size: 10, totalItems: 12, totalPages: Math.ceil(12 / 10) });
+      expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 1, 10);
+    });
   });
 
   describe('createDonation', () => {

@@ -9,6 +9,10 @@ import { JWT_SECRET } from "../config";
 
 let userService = new UserService();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const GOOGLE_AUDIENCES = (process.env.GOOGLE_CLIENT_ID || '')
+    .split(',')
+    .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
 
 export class AuthController {
     async whoami(req: Request, res: Response) {
@@ -68,9 +72,10 @@ export class AuthController {
             if (!idToken) {
                 return res.status(400).json({ success: false, message: "idToken is required" });
             }
+            const audience = GOOGLE_AUDIENCES.length > 1 ? GOOGLE_AUDIENCES : GOOGLE_AUDIENCES[0];
             const ticket = await googleClient.verifyIdToken({
                 idToken,
-                audience: process.env.GOOGLE_CLIENT_ID,
+                audience,
             });
             const payload = ticket.getPayload();
             if (!payload || !payload.email) {
@@ -79,6 +84,15 @@ export class AuthController {
             // Optional: reject if email is not verified by Google
             if (payload.email_verified === false) {
                 return res.status(400).json({ success: false, message: "Google email not verified" });
+            }
+
+            // If the client explicitly requested registration, block when email already exists
+            const { action } = req.body as any;
+            if (action === 'register') {
+                const existing = await userService.getUserByEmail(payload.email);
+                if (existing) {
+                    return res.status(400).json({ success: false, message: 'Email already registered' });
+                }
             }
 
             const user = await userService.findOrCreateFromGoogle({

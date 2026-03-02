@@ -115,6 +115,19 @@ describe('UserService', () => {
     expect(res).toEqual(user);
   });
 
+  test('getUserByEmail returns user or null and throws on missing email', async () => {
+    const user = { _id: 'u_email', email: 'e@x' } as any;
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail').mockResolvedValueOnce(user as any);
+    const res = await service.getUserByEmail('e@x');
+    expect(res).toEqual(user);
+
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail').mockResolvedValueOnce(null as any);
+    const none = await service.getUserByEmail('no@x');
+    expect(none).toBeNull();
+
+    await expect(service.getUserByEmail('' as any)).rejects.toEqual(expect.any(Error));
+  });
+
   test('sendResetPasswordEmail throws on missing email or not found, otherwise sends email', async () => {
     await expect(service.sendResetPasswordEmail(undefined)).rejects.toEqual(expect.any(Error));
     jest.spyOn(UserRepository.prototype, 'getUserByEmail').mockResolvedValueOnce(null as any);

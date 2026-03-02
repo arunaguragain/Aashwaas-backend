@@ -1,16 +1,50 @@
-import { AuthController } from '../../../controllers/auth.controller';
+// AuthController is required inside tests to control module load-time env
 import { UserService } from '../../../services/user.service';
 import { HttpError } from '../../../errors/http-error';
 
 jest.mock('../../../services/user.service');
 
 describe('AuthController', () => {
-  let controller: AuthController;
+  let controller: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks();
-    controller = new AuthController();
+    const controllerModule = require('../../../controllers/auth.controller');
+    controller = new controllerModule.AuthController();
+  });
+
+  test('googleSignIn strips quotes from GOOGLE_CLIENT_ID entries', async () => {
+    const originalEnv = process.env.GOOGLE_CLIENT_ID;
+    try {
+      await new Promise<void>((resolve) => {
+        jest.isolateModules(async () => {
+          process.env.GOOGLE_CLIENT_ID = "'idA','idB'";
+          jest.unmock('../../../services/user.service');
+          const google = require('google-auth-library');
+          const verifySpy = jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockImplementationOnce(async (opts: any) => {
+            expect(opts.audience).toEqual(['idA', 'idB']);
+            return { getPayload: () => ({ email: 'quoted@x', email_verified: true }) } as any;
+          });
+
+          const controllerModule = require('../../../controllers/auth.controller');
+          const controller2 = new controllerModule.AuthController();
+
+          const RealUserService = jest.requireActual('../../../services/user.service').UserService;
+          jest.spyOn(RealUserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce({ _id: 'uq', email: 'quoted@x', role: 'user' } as any);
+          const jwt = require('jsonwebtoken');
+          jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('tokq');
+
+          const req: any = { body: { idToken: 'tokq' } };
+          const res = mockRes();
+          await controller2.googleSignIn(req, res, jest.fn());
+          expect(verifySpy).toHaveBeenCalled();
+          resolve();
+        });
+      });
+    } finally {
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    }
   });
 
   function mockRes() {
@@ -147,6 +181,38 @@ describe('AuthController', () => {
     await controller.googleSignIn(req, res, jest.fn());
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, token: 'signed-token' }));
+  });
+
+  test('googleSignIn register returns 400 when email already exists', async () => {
+    const req: any = { body: { idToken: 'tok', action: 'register' } };
+    const res = mockRes();
+    const payload = { email: 'exists@x', name: 'Name', picture: 'pic', email_verified: true };
+    const google = require('google-auth-library');
+    jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockResolvedValueOnce({ getPayload: () => payload } as any);
+    const existing = { _id: 'u_exists', email: 'exists@x' } as any;
+    jest.spyOn(UserService.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(existing as any);
+
+    await controller.googleSignIn(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Email already registered' });
+  });
+
+  test('googleSignIn register creates new user when email does not exist', async () => {
+    const req: any = { body: { idToken: 'tok', action: 'register' } };
+    const res = mockRes();
+    const payload = { email: 'newreg@x', name: 'New', picture: 'pic', email_verified: true };
+    const google = require('google-auth-library');
+    jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockResolvedValueOnce({ getPayload: () => payload } as any);
+    // no existing user
+    jest.spyOn(UserService.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(null as any);
+    const created = { _id: 'u_new', email: 'newreg@x', role: 'user' } as any;
+    jest.spyOn(UserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce(created as any);
+    const jwt = require('jsonwebtoken');
+    jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('new-token');
+
+    await controller.googleSignIn(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, token: 'new-token' }));
   });
 
   test('updateProfile returns 400 when no user id', async () => {
@@ -335,6 +401,141 @@ describe('AuthController', () => {
     await controller.updateProfile(req, res);
     expect(UserService.prototype.updateUser).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('googleSignIn uses array audience when GOOGLE_CLIENT_ID contains multiple ids', async () => {
+    const originalEnv = process.env.GOOGLE_CLIENT_ID;
+    try {
+      await new Promise<void>((resolve) => {
+        jest.isolateModules(async () => {
+          process.env.GOOGLE_CLIENT_ID = 'id1,id2';
+          // ensure the real service is used inside this isolated module registry
+          jest.unmock('../../../services/user.service');
+          const google = require('google-auth-library');
+          const verifySpy = jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockImplementationOnce(async (opts: any) => {
+            expect(opts.audience).toEqual(['id1', 'id2']);
+            return { getPayload: () => ({ email: 'a@b', email_verified: true }) } as any;
+          });
+
+          const controllerModule = require('../../../controllers/auth.controller');
+          const controller2 = new controllerModule.AuthController();
+
+          const RealUserService = jest.requireActual('../../../services/user.service').UserService;
+          jest.spyOn(RealUserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce({ _id: 'u', email: 'a@b', role: 'user' } as any);
+          const jwt = require('jsonwebtoken');
+          jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('tok');
+
+          const req: any = { body: { idToken: 'tok' } };
+          const res = mockRes();
+          await controller2.googleSignIn(req, res, jest.fn());
+          expect(verifySpy).toHaveBeenCalled();
+          resolve();
+        });
+      });
+    } finally {
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    }
+  });
+
+  test('googleSignIn uses single audience when GOOGLE_CLIENT_ID is a single id', async () => {
+    const originalEnv = process.env.GOOGLE_CLIENT_ID;
+    try {
+      await new Promise<void>((resolve) => {
+        jest.isolateModules(async () => {
+          process.env.GOOGLE_CLIENT_ID = 'only-id';
+          jest.unmock('../../../services/user.service');
+          const google = require('google-auth-library');
+          const verifySpy = jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockImplementationOnce(async (opts: any) => {
+            expect(opts.audience).toBe('only-id');
+            return { getPayload: () => ({ email: 'a2@b', email_verified: true }) } as any;
+          });
+
+          const controllerModule = require('../../../controllers/auth.controller');
+          const controller2 = new controllerModule.AuthController();
+
+          const RealUserService = jest.requireActual('../../../services/user.service').UserService;
+          jest.spyOn(RealUserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce({ _id: 'u2', email: 'a2@b', role: 'user' } as any);
+          const jwt = require('jsonwebtoken');
+          jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('tok2');
+
+          const req: any = { body: { idToken: 'tok2' } };
+          const res = mockRes();
+          await controller2.googleSignIn(req, res, jest.fn());
+          expect(verifySpy).toHaveBeenCalled();
+          resolve();
+        });
+      });
+    } finally {
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    }
+  });
+
+  test('googleSignIn handles missing GOOGLE_CLIENT_ID (falsy) branch', async () => {
+    const originalEnv = process.env.GOOGLE_CLIENT_ID;
+    try {
+      await new Promise<void>((resolve) => {
+        jest.isolateModules(async () => {
+          // simulate missing/empty env value to hit the falsy side of `process.env.GOOGLE_CLIENT_ID || ''`
+          delete process.env.GOOGLE_CLIENT_ID;
+          jest.unmock('../../../services/user.service');
+          const google = require('google-auth-library');
+          const verifySpy = jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockImplementationOnce(async (opts: any) => {
+            // when no GOOGLE_CLIENT_ID is set, audience may be undefined
+            expect(opts.audience === undefined || opts.audience === '').toBeTruthy();
+            return { getPayload: () => ({ email: 'falsy@x', email_verified: true }) } as any;
+          });
+
+          const controllerModule = require('../../../controllers/auth.controller');
+          const controller2 = new controllerModule.AuthController();
+          const RealUserService = jest.requireActual('../../../services/user.service').UserService;
+          jest.spyOn(RealUserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce({ _id: 'uf', email: 'falsy@x', role: 'user' } as any);
+          const jwt = require('jsonwebtoken');
+          jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('tokf');
+
+          const req: any = { body: { idToken: 'tokf' } };
+          const res = mockRes();
+          await controller2.googleSignIn(req, res, jest.fn());
+          expect(verifySpy).toHaveBeenCalled();
+          resolve();
+        });
+      });
+    } finally {
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    }
+  });
+
+  test('googleSignIn handles empty GOOGLE_CLIENT_ID string branch', async () => {
+    const originalEnv = process.env.GOOGLE_CLIENT_ID;
+    try {
+      await new Promise<void>((resolve) => {
+        jest.isolateModules(async () => {
+          // simulate empty string env value to hit the alternate side of the || expression
+          process.env.GOOGLE_CLIENT_ID = '';
+          jest.unmock('../../../services/user.service');
+          const google = require('google-auth-library');
+          const verifySpy = jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockImplementationOnce(async (opts: any) => {
+            // audience may be undefined or empty when env is empty
+            expect(opts.audience === undefined || opts.audience === '').toBeTruthy();
+            return { getPayload: () => ({ email: 'empty@x', email_verified: true }) } as any;
+          });
+
+          const controllerModule = require('../../../controllers/auth.controller');
+          const controller2 = new controllerModule.AuthController();
+          const RealUserService = jest.requireActual('../../../services/user.service').UserService;
+          jest.spyOn(RealUserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce({ _id: 'ue', email: 'empty@x', role: 'user' } as any);
+          const jwt = require('jsonwebtoken');
+          jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('toke');
+
+          const req: any = { body: { idToken: 'toke' } };
+          const res = mockRes();
+          await controller2.googleSignIn(req, res, jest.fn());
+          expect(verifySpy).toHaveBeenCalled();
+          resolve();
+        });
+      });
+    } finally {
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    }
   });
 });
 

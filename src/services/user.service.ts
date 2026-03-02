@@ -72,6 +72,14 @@ export class UserService{
             return user;
     }
 
+    async getUserByEmail(email: string) {
+        if (!email) {
+            throw new HttpError(400, "Email is required");
+        }
+        const user = await userRepository.getUserByEmail(email);
+        return user;
+    }
+
     async sendResetPasswordEmail(email?: string) {
         if (!email) {
             throw new HttpError(400, "Email is required");
