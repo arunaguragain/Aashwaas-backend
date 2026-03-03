@@ -14,6 +14,8 @@ router.put("/:id", authorizedMiddleware, uploads.single("image"), authController
 router.post("/request-password-reset", 
     authController.sendResetPasswordEmail);
 router.post("/reset-password/:token", authController.resetPassword);
+router.post("/request-password-otp", authController.sendResetPasswordOTP);
+router.post("/reset-password-otp", authController.resetPasswordWithOTP);
 
 router.get("/whoami", authorizedMiddleware, authController.whoami)
 router.get("/:id", authorizedMiddleware, authController.getUserById)

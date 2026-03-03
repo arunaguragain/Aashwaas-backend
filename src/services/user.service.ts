@@ -1,5 +1,6 @@
 import { CreateUserDTO, LoginUserDTO, UpdateUserDTO } from "../dtos/user.dto";
 import { UserRepository } from "../repositories/user.repository";
+import { PasswordResetRepository } from "../repositories/passwordReset.repository";
 import bcrypts from "bcryptjs";
 import { HttpError } from "../errors/http-error";
 import jwt from "jsonwebtoken";
@@ -8,6 +9,7 @@ import { sendEmail } from "../config/email";
 
 const CLIENT_URL = process.env.CLIENT_URL as string;
 let userRepository = new UserRepository();
+let passwordResetRepository = new PasswordResetRepository();
 
 export class UserService{
     async registerUser(data: CreateUserDTO){
@@ -131,5 +133,55 @@ export class UserService{
             profilePicture: picture || undefined,
         });
         return newUser;
+    }
+
+    async sendResetPasswordOTP(email?: string) {
+        if (!email) {
+            throw new HttpError(400, "Email is required");
+        }
+        const user = await userRepository.getUserByEmail(email);
+        // Do not reveal whether email exists — return success either way.
+        if (!user) {
+            return;
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpHash = await bcrypts.hash(otp, 10);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        await passwordResetRepository.create({ userId: user._id, otpHash, expiresAt } as any);
+
+        const html = `<p>Your password reset OTP is <strong>${otp}</strong>. It is valid for 10 minutes.</p>`;
+        await sendEmail(user.email, "Password Reset OTP", html);
+        return;
+    }
+
+    async resetPasswordWithOTP(email?: string, otp?: string, newPassword?: string) {
+        if (!email || !otp || !newPassword) {
+            throw new HttpError(400, "Email, OTP and new password are required");
+        }
+        const user = await userRepository.getUserByEmail(email);
+        if (!user) {
+            throw new HttpError(404, "User not found");
+        }
+
+        const record = await passwordResetRepository.findLatestByUser(user._id.toString());
+        if (!record || record.used || record.expiresAt < new Date()) {
+            throw new HttpError(400, "Invalid or expired OTP");
+        }
+
+        const isValid = await bcrypts.compare(otp, record.otpHash);
+        if (!isValid) {
+            const attempts = await passwordResetRepository.incrementAttempts(record._id.toString());
+            if (attempts >= 5) {
+                await passwordResetRepository.markUsed(record._id.toString());
+            }
+            throw new HttpError(400, "Invalid OTP");
+        }
+
+        const hashedPassword = await bcrypts.hash(newPassword, 10);
+        await userRepository.updateUser(user._id.toString(), { password: hashedPassword });
+        await passwordResetRepository.markUsed(record._id.toString());
+        return user;
     }
 }

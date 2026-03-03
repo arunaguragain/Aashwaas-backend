@@ -1,11 +1,114 @@
 import { UserService } from '../../../services/user.service';
 import { UserRepository } from '../../../repositories/user.repository';
+import { PasswordResetRepository } from '../../../repositories/passwordReset.repository';
+import * as emailMod from '../../../config/email';
 import bcrypts from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { HttpError } from '../../../errors/http-error';
 
 jest.mock('../../../repositories/user.repository');
+jest.mock('../../../repositories/passwordReset.repository');
 
-describe('UserService', () => {
+describe('UserService OTP flow', () => {
+  let svc: UserService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    svc = new UserService();
+  });
+
+  test('sendResetPasswordOTP throws 400 when email missing', async () => {
+    await expect(svc.sendResetPasswordOTP(undefined)).rejects.toThrow(HttpError);
+  });
+
+  test('sendResetPasswordOTP returns quietly when user not found', async () => {
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(null as any);
+    const sendSpy = jest.spyOn(emailMod, 'sendEmail').mockResolvedValueOnce(undefined as any);
+    await expect(svc.sendResetPasswordOTP('noone@x')).resolves.toBeUndefined();
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  test('sendResetPasswordOTP creates record and sends email when user exists', async () => {
+    const user = { _id: 'u1', email: 'u1@x' } as any;
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    const createSpy = jest.spyOn(PasswordResetRepository.prototype, 'create' as any).mockResolvedValueOnce({} as any);
+    const sendSpy = jest.spyOn(emailMod, 'sendEmail' as any).mockResolvedValueOnce(undefined as any);
+    await expect(svc.sendResetPasswordOTP('u1@x')).resolves.toBeUndefined();
+    expect(createSpy).toHaveBeenCalled();
+    expect(sendSpy).toHaveBeenCalledWith('u1@x', expect.any(String), expect.any(String));
+  });
+
+  test('resetPasswordWithOTP validates inputs', async () => {
+    await expect(svc.resetPasswordWithOTP(undefined, '1', 'p')).rejects.toThrow(HttpError);
+    await expect(svc.resetPasswordWithOTP('a@b', undefined, 'p')).rejects.toThrow(HttpError);
+    await expect(svc.resetPasswordWithOTP('a@b', '1', undefined)).rejects.toThrow(HttpError);
+  });
+
+  test('resetPasswordWithOTP throws 404 when user missing', async () => {
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(null as any);
+    await expect(svc.resetPasswordWithOTP('no@x', '123456', 'np')).rejects.toThrow(HttpError);
+  });
+
+  test('resetPasswordWithOTP throws 400 when no record or expired/used', async () => {
+    const user = { _id: 'u2', email: 'u2@x' } as any;
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    jest.spyOn(PasswordResetRepository.prototype, 'findLatestByUser' as any).mockResolvedValueOnce(null as any);
+    await expect(svc.resetPasswordWithOTP('u2@x', '000000', 'np')).rejects.toThrow(HttpError);
+  });
+
+  test('resetPasswordWithOTP invalid OTP increments attempts and throws', async () => {
+    const user = { _id: 'u3', email: 'u3@x' } as any;
+    const record: any = { _id: 'r1', used: false, expiresAt: new Date(Date.now() + 10000), otpHash: await bcrypts.hash('999999', 10), attempts: 0 };
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    jest.spyOn(PasswordResetRepository.prototype, 'findLatestByUser' as any).mockResolvedValueOnce(record as any);
+    const incSpy = jest.spyOn(PasswordResetRepository.prototype, 'incrementAttempts' as any).mockResolvedValueOnce(1 as any);
+    await expect(svc.resetPasswordWithOTP('u3@x', '000000', 'np')).rejects.toThrow(HttpError);
+    expect(incSpy).toHaveBeenCalledWith('r1');
+  });
+
+  test('resetPasswordWithOTP successful flow updates password and marks used', async () => {
+    const user = { _id: 'u4', email: 'u4@x' } as any;
+    const plainOtp = '123456';
+    const record: any = { _id: 'r2', used: false, expiresAt: new Date(Date.now() + 10000), otpHash: await bcrypts.hash(plainOtp, 10), attempts: 0 };
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    jest.spyOn(PasswordResetRepository.prototype, 'findLatestByUser' as any).mockResolvedValueOnce(record as any);
+    const updateSpy = jest.spyOn(UserRepository.prototype, 'updateUser' as any).mockResolvedValueOnce(user as any);
+    const markSpy = jest.spyOn(PasswordResetRepository.prototype, 'markUsed' as any).mockResolvedValueOnce(undefined as any);
+    await expect(svc.resetPasswordWithOTP('u4@x', plainOtp, 'newpass')).resolves.toBe(user);
+    expect(updateSpy).toHaveBeenCalled();
+    expect(markSpy).toHaveBeenCalledWith('r2');
+  });
+
+  test('resetPasswordWithOTP rejects when record already used', async () => {
+    const user = { _id: 'ux', email: 'ux@x' } as any;
+    const record: any = { _id: 'ru', used: true, expiresAt: new Date(Date.now() + 10000), otpHash: await bcrypts.hash('111111', 10), attempts: 0 };
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    jest.spyOn(PasswordResetRepository.prototype, 'findLatestByUser' as any).mockResolvedValueOnce(record as any);
+    await expect(svc.resetPasswordWithOTP('ux@x', '111111', 'np')).rejects.toThrow();
+  });
+
+  test('resetPasswordWithOTP rejects when record expired', async () => {
+    const user = { _id: 'ue', email: 'ue@x' } as any;
+    const record: any = { _id: 're', used: false, expiresAt: new Date(Date.now() - 10000), otpHash: await bcrypts.hash('222222', 10), attempts: 0 };
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    jest.spyOn(PasswordResetRepository.prototype, 'findLatestByUser' as any).mockResolvedValueOnce(record as any);
+    await expect(svc.resetPasswordWithOTP('ue@x', '222222', 'np')).rejects.toThrow();
+  });
+
+  test('resetPasswordWithOTP invalid OTP that reaches max attempts marks used', async () => {
+    const user = { _id: 'um', email: 'um@x' } as any;
+    const record: any = { _id: 'rm', used: false, expiresAt: new Date(Date.now() + 10000), otpHash: await bcrypts.hash('333333', 10), attempts: 4 };
+    jest.spyOn(UserRepository.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(user as any);
+    jest.spyOn(PasswordResetRepository.prototype, 'findLatestByUser' as any).mockResolvedValueOnce(record as any);
+    const incSpy = jest.spyOn(PasswordResetRepository.prototype, 'incrementAttempts' as any).mockResolvedValueOnce(5 as any);
+    const markSpy = jest.spyOn(PasswordResetRepository.prototype, 'markUsed' as any).mockResolvedValueOnce(undefined as any);
+    await expect(svc.resetPasswordWithOTP('um@x', '000000', 'np')).rejects.toThrow();
+    expect(incSpy).toHaveBeenCalledWith('rm');
+    expect(markSpy).toHaveBeenCalledWith('rm');
+  });
+});
+
+describe('UserService (core behaviours)', () => {
   let service: UserService;
 
   beforeEach(() => {
@@ -189,3 +292,4 @@ describe('UserService', () => {
     expect(res3).toEqual({ _id: 'n2', email: 'new2@x' });
   });
 });
+

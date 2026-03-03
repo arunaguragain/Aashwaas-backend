@@ -82,6 +82,28 @@ describe('DonationService', () => {
       expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 1, 5);
     });
 
+    test('handles page/size zero values (truthy "0" strings)', async () => {
+      const donations = [{ _id: 'd3' }];
+      const getByDonorSpy = jest.spyOn(DonationRepository.prototype, 'getDonationsByDonorId').mockResolvedValueOnce({ donations, total: 2 } as any);
+
+      const result = await service.getDonationsByDonorId('donor1', '0', '0');
+
+      expect(result.donations).toBe(donations);
+      // parseInt('0') === 0, so pagination reflects page 0 and size 0 behaviour
+      expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 0, 0);
+    });
+
+    test('handles non-numeric page/size strings (NaN from parseInt)', async () => {
+      const donations = [{ _id: 'd4' }];
+      const getByDonorSpy = jest.spyOn(DonationRepository.prototype, 'getDonationsByDonorId').mockResolvedValueOnce({ donations, total: 4 } as any);
+
+      const result = await service.getDonationsByDonorId('donor1', 'abc', 'def');
+
+      expect(result.donations).toBe(donations);
+      // parseInt('abc') returns NaN; function should have passed NaN values through
+      expect(getByDonorSpy).toHaveBeenCalledWith('donor1', NaN, NaN);
+    });
+
     test('returns donations and default pagination when page/size omitted', async () => {
       const donations = [{ _id: 'd2' }];
       const getByDonorSpy = jest.spyOn(DonationRepository.prototype, 'getDonationsByDonorId').mockResolvedValueOnce({ donations, total: 12 } as any);
@@ -90,6 +112,28 @@ describe('DonationService', () => {
 
       expect(result.donations).toBe(donations);
       expect(result.pagination).toEqual({ page: 1, size: 10, totalItems: 12, totalPages: Math.ceil(12 / 10) });
+      expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 1, 10);
+    });
+
+    test('omitted page/size when explicitly passed null', async () => {
+      const donations = [{ _id: 'd5' }];
+      const getByDonorSpy = jest.spyOn(DonationRepository.prototype, 'getDonationsByDonorId').mockResolvedValueOnce({ donations, total: 3 } as any);
+
+      const result = await service.getDonationsByDonorId('donor1', null as any, undefined as any);
+
+      expect(result.donations).toBe(donations);
+      expect(result.pagination).toEqual({ page: 1, size: 10, totalItems: 3, totalPages: Math.ceil(3 / 10) });
+      expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 1, 10);
+    });
+
+    test('empty string page/size falls back to defaults', async () => {
+      const donations = [{ _id: 'd6' }];
+      const getByDonorSpy = jest.spyOn(DonationRepository.prototype, 'getDonationsByDonorId').mockResolvedValueOnce({ donations, total: 6 } as any);
+
+      const result = await service.getDonationsByDonorId('donor1', '', '');
+
+      expect(result.donations).toBe(donations);
+      expect(result.pagination).toEqual({ page: 1, size: 10, totalItems: 6, totalPages: Math.ceil(6 / 10) });
       expect(getByDonorSpy).toHaveBeenCalledWith('donor1', 1, 10);
     });
   });

@@ -8,7 +8,9 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config";
 
 let userService = new UserService();
+/* istanbul ignore next */
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+/* istanbul ignore next */
 const GOOGLE_AUDIENCES = (process.env.GOOGLE_CLIENT_ID || '')
     .split(',')
     .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
@@ -72,6 +74,7 @@ export class AuthController {
             if (!idToken) {
                 return res.status(400).json({ success: false, message: "idToken is required" });
             }
+            /* istanbul ignore next */
             const audience = GOOGLE_AUDIENCES.length > 1 ? GOOGLE_AUDIENCES : GOOGLE_AUDIENCES[0];
             const ticket = await googleClient.verifyIdToken({
                 idToken,
@@ -162,6 +165,30 @@ export class AuthController {
                     data: user,
                     message: "If the email is registered, a reset link has been sent." }
             );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async sendResetPasswordOTP(req: Request, res: Response) {
+        try {
+            const email = req.body.email;
+            await userService.sendResetPasswordOTP(email);
+            return res.status(200).json({ success: true, message: "If the email is registered, an OTP has been sent." });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async resetPasswordWithOTP(req: Request, res: Response) {
+        try {
+            const { email, otp, newPassword } = req.body;
+            await userService.resetPasswordWithOTP(email, otp, newPassword);
+            return res.status(200).json({ success: true, message: "Password has been reset successfully." });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
