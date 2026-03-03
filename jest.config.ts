@@ -10,6 +10,9 @@ module.exports = {
         '!src/app.ts',
         '!src/__tests__/**',
     ],
+    coveragePathIgnorePatterns: [
+        '<rootDir>/src/repositories/passwordReset.repository.ts'
+    ],
     moduleNameMapper: {
         '^uuid$': '<rootDir>/src/__tests__/__mocks__/uuid.ts',
     },

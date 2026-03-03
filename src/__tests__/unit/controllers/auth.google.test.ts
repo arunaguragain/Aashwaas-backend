@@ -1,8 +1,5 @@
 import { jest } from '@jest/globals';
 
-// We'll set up module mocks per-test to ensure the controller's module-level
-// `userService` is created from the mocked constructor. See `beforeEach`.
-
 describe('AuthController.googleSignIn', () => {
   let controller: any;
   let UserService: any;

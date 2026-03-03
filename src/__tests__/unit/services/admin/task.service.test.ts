@@ -1,9 +1,13 @@
 import mongoose from 'mongoose';
 import { AdminTaskService } from '../../../../services/admin/task.service';
 import { TaskRepository } from '../../../../repositories/task.repository';
+import { UserRepository } from '../../../../repositories/user.repository';
 import { HttpError } from '../../../../errors/http-error';
+import { sendEmail } from '../../../../config/email';
 
 jest.mock('../../../../repositories/task.repository');
+jest.mock('../../../../repositories/user.repository');
+jest.mock('../../../../config/email', () => ({ sendEmail: jest.fn() }));
 
 describe('AdminTaskService', () => {
   let service: AdminTaskService;
@@ -48,8 +52,23 @@ describe('AdminTaskService', () => {
     expect(res).toEqual(created);
   });
 
+  test('createTask sends email if volunteer exists', async () => {
+    const created = { _id: 'newemail' } as any;
+    jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValueOnce(created);
+    jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValueOnce({ _id: 'v10', email: 'vol10@example.com', name: 'VolTen' } as any);
+
+    const data = { donationId: 'aaaaaaaaaaaaaaaaaaaaaaaa', volunteerId: 'bbbbbbbbbbbbbbbbbbbbbbbb', ngoId: 'cccccccccccccccccccccccc', title: 'My task' };
+    const res = await service.createTask(data as any);
+    expect(res).toEqual(created);
+    expect(sendEmail).toHaveBeenCalledWith(
+      'vol10@example.com',
+      expect.any(String),
+      expect.stringContaining('assigned')
+    );
+  });
+
   test('createTask handles missing ngoId gracefully', async () => {
-    const created = { _id: 'new2' } as any;
+    const created = { _id: 'new_no_ngo' } as any;
     const spy = jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValueOnce(created);
     const data = { donationId: 'aaaaaaaaaaaaaaaaaaaaaaaa', volunteerId: 'bbbbbbbbbbbbbbbbbbbbbbbb' };
     const res = await service.createTask(data as any);
@@ -57,6 +76,14 @@ describe('AdminTaskService', () => {
     const calledArg = spy.mock.calls[0][0];
     expect(calledArg.ngoId).toBeUndefined();
     expect(res).toEqual(created);
+  });
+
+  test('createTask continues even if email send fails', async () => {
+    jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValueOnce({ _id: 'err' } as any);
+    jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValueOnce({ _id: 'v11', email: 'bad@example.com' } as any);
+    (sendEmail as jest.Mock).mockRejectedValueOnce(new Error('smtp'));
+    await expect(service.createTask({ donationId: 'aaaaaaaaaaaaaaaaaaaaaaaa', volunteerId: 'bbbbbbbbbbbbbbbbbbbbbbbb', ngoId: 'cccccccccccccccccccccccc' } as any)).resolves.toBeDefined();
+    expect(sendEmail).toHaveBeenCalled();
   });
 
   test('updateTask throws 404 when task not found', async () => {

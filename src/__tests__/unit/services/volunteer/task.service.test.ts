@@ -2,9 +2,11 @@ import { HttpError } from '../../../../errors/http-error';
 import { VolunteerTaskService } from '../../../../services/volunteer/task.service';
 import { TaskRepository } from '../../../../repositories/task.repository';
 import { DonationRepository } from '../../../../repositories/donation.repository';
+import { DonationService } from '../../../../services/donation.service';
 
 jest.mock('../../../../repositories/task.repository');
 jest.mock('../../../../repositories/donation.repository');
+jest.mock('../../../../services/donation.service');
 
 describe('VolunteerTaskService', () => {
   let service: VolunteerTaskService;
@@ -80,16 +82,16 @@ describe('VolunteerTaskService', () => {
       await expect(service.completeTask('t1', 'v1')).rejects.toEqual(expect.any(HttpError));
     });
 
-    test('completes accepted task and updates donation', async () => {
+    test('completes accepted task and updates donation (via service)', async () => {
       const task = { _id: 't1', volunteerId: 'v1', status: 'accepted', donationId: 'd1' } as any;
       const updated = { ...task, status: 'completed' } as any;
       jest.spyOn(TaskRepository.prototype, 'getTaskById' as any).mockResolvedValueOnce(task);
       jest.spyOn(TaskRepository.prototype, 'updateTask' as any).mockResolvedValueOnce(updated as any);
-      jest.spyOn(DonationRepository.prototype, 'updateDonation' as any).mockResolvedValueOnce({ _id: 'd1', status: 'completed' } as any);
+      jest.spyOn(DonationService.prototype, 'updateDonation' as any).mockResolvedValueOnce({ _id: 'd1', status: 'completed' } as any);
 
       const res = await service.completeTask('t1', 'v1');
       expect(res).toEqual(updated);
-      expect(DonationRepository.prototype.updateDonation).toHaveBeenCalled();
+      expect(DonationService.prototype.updateDonation).toHaveBeenCalledWith('d1', { status: 'completed' });
     });
   });
 

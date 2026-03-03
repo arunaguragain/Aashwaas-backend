@@ -216,6 +216,37 @@ describe('AuthController', () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, token: 'new-token' }));
   });
 
+  test('googleSignIn uses single audience string when only one client id present', async () => {
+    const originalEnv = process.env.GOOGLE_CLIENT_ID;
+    try {
+      await new Promise<void>(resolve => {
+        jest.isolateModules(async () => {
+          process.env.GOOGLE_CLIENT_ID = 'singleId';
+          jest.unmock('../../../services/user.service');
+          const google = require('google-auth-library');
+          const verifySpy = jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockImplementationOnce(async (opts: any) => {
+            expect(opts.audience).toBe('singleId');
+            return { getPayload: () => ({ email: 'a@b', email_verified: true }) } as any;
+          });
+
+          const controllerModule = require('../../../controllers/auth.controller');
+          const controller2 = new controllerModule.AuthController();
+          const RealUserService = jest.requireActual('../../../services/user.service').UserService;
+          jest.spyOn(RealUserService.prototype, 'findOrCreateFromGoogle' as any).mockResolvedValueOnce({ _id: 'u', email: 'a@b', role: 'user' } as any);
+          const jwt = require('jsonwebtoken');
+          jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('tok');
+
+          const req: any = { body: { idToken: 'tok' } };
+          const res = mockRes();
+          await controller2.googleSignIn(req, res, jest.fn());
+          resolve();
+        });
+      });
+    } finally {
+      process.env.GOOGLE_CLIENT_ID = originalEnv;
+    }
+  });
+
   test('updateProfile returns 400 when no user id', async () => {
     const req: any = { body: {} };
     const res = mockRes();
@@ -244,6 +275,17 @@ describe('AuthController', () => {
     expect(res.json).toHaveBeenCalledWith({ success: true, message: 'Profile Updated', data: updated });
   });
 
+  test('updateProfile updates when no file provided', async () => {
+    const updated = { _id: 'u4', name: 'AB' } as any;
+    jest.spyOn(UserService.prototype, 'updateUser').mockResolvedValueOnce(updated as any);
+    // ensure parsing succeeds for tests that don't stub DTO
+    const req: any = { user: { _id: 'u4' }, body: { name: 'AB' } };
+    const res = mockRes();
+    await controller.updateProfile(req, res);
+    expect(UserService.prototype.updateUser).toHaveBeenCalledWith('u4', expect.objectContaining({ name: 'AB' }));
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
   test('getUserById returns 200 with user', async () => {
     const user = { _id: 'u5' } as any;
     jest.spyOn(UserService.prototype, 'getUserById').mockResolvedValueOnce(user as any);
@@ -261,6 +303,15 @@ describe('AuthController', () => {
     const res = mockRes();
     await controller.sendResetPasswordEmail(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('sendResetPasswordEmail handles service error', async () => {
+    jest.spyOn(UserService.prototype, 'sendResetPasswordEmail').mockRejectedValueOnce(new Error('fail'));
+    const req: any = { body: { email: 'u6@x' } };
+    const res = mockRes();
+    await controller.sendResetPasswordEmail(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'fail' });
   });
 
   test('sendResetPasswordOTP returns 200 on success', async () => {
@@ -355,6 +406,8 @@ describe('AuthController', () => {
     // updateProfile service error
     jest.spyOn(UserService.prototype, 'updateUser').mockRejectedValueOnce({});
     req = { user: { _id: 'u4' }, body: { name: 'Updated' }, file: { filename: 'pic.jpg' } };
+    // ensure validation passes
+    jest.spyOn(dtoMod.UpdateUserDTO, 'safeParse').mockReturnValue({ success: true, data: req.body } as any);
     res = mockRes();
     await controller.updateProfile(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
@@ -400,6 +453,15 @@ describe('AuthController', () => {
     jest.spyOn(dtoMod.LoginUserDTO, 'safeParse').mockReturnValue({ success: true, data: req.body });
     res = mockRes();
     await controller.login(req, res);
+    expect(res.status).toHaveBeenCalledWith(418);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'custom' });
+
+    // updateProfile during statusCode test (needs validation)
+    jest.spyOn(UserService.prototype, 'updateUser').mockRejectedValueOnce(err);
+    req = { user: { _id: 'u4' }, body: { name: 'AB' }, file: { filename: 'pic.jpg' } };
+    jest.spyOn(dtoMod.UpdateUserDTO, 'safeParse').mockReturnValue({ success: true, data: req.body } as any);
+    res = mockRes();
+    await controller.updateProfile(req, res);
     expect(res.status).toHaveBeenCalledWith(418);
     expect(res.json).toHaveBeenCalledWith({ success: false, message: 'custom' });
 

@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import { HttpError } from '../../errors/http-error';
 import { TaskRepository } from '../../repositories/task.repository';
+import { UserRepository } from '../../repositories/user.repository';
+import { sendEmail } from '../../config/email';
+
 let taskRepository = new TaskRepository();
 
 export class AdminTaskService {
@@ -45,6 +48,21 @@ export class AdminTaskService {
       ngoId: data.ngoId ? new mongoose.Types.ObjectId(data.ngoId) : undefined,
     };
     const newTask = await taskRepository.createTask(taskData);
+
+    try {
+      const userRepo = new UserRepository();
+      const volunteer = await userRepo.getUserById(taskData.volunteerId.toString());
+      if (volunteer && volunteer.email) {
+        const html = `<p>Dear ${volunteer.name || 'Volunteer'},</p>
+<p>You have been assigned a new task titled <strong>${taskData.title || 'No title provided'}</strong>. Please log in to your dashboard for more details.</p>
+<p>Thank you for your support!</p>
+<p>— Aashwaas Team</p>`;
+        await sendEmail(volunteer.email, 'New Task Assigned', html);
+      }
+    } catch (e) {
+      console.error('Failed to send volunteer assignment email', e);
+    }
+
     return newTask;
   }
 

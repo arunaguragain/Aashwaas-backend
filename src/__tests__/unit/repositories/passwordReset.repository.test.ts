@@ -1,9 +1,10 @@
-import { PasswordResetRepository } from '../../../repositories/passwordReset.repository';
+// explicitly load the real implementation in case some other test mocked the module
+const { PasswordResetRepository } = jest.requireActual('../../../repositories/passwordReset.repository');
 import { PasswordResetModel } from '../../../models/passwordReset.model';
 import mongoose from 'mongoose';
 
 describe('PasswordResetRepository', () => {
-  let repo: PasswordResetRepository;
+  let repo: any; // use any since we import via requireActual
 
   beforeEach(() => {
     jest.clearAllMocks();

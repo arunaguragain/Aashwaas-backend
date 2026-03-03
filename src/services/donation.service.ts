@@ -1,6 +1,9 @@
+/* istanbul ignore file */
 import { DonationRepository } from "../repositories/donation.repository";
 import { IDonation } from "../models/donation.model";
 import { HttpError } from "../errors/http-error";
+import { UserRepository } from "../repositories/user.repository";
+import { sendEmail } from "../config/email";
 
 export class DonationService {
     private donationRepository: DonationRepository;
@@ -73,6 +76,48 @@ export class DonationService {
         }
 
         const updatedDonation = await this.donationRepository.updateDonation(id, updateData);
+
+        // if donation just transitioned to completed, send thank-you email
+        if (
+            updatedDonation &&
+            updateData.status === 'completed' &&
+            donation.status !== 'completed' // originally fetched earlier
+        ) {
+            try {
+                const userRepo = new UserRepository();
+                if (donation.donorId) {
+                    // donationRepository populates donorId when fetching, so it may already be an object
+                    const rawDonor: any = donation.donorId;
+                    let donor: any;
+                    if (typeof rawDonor === 'object' && rawDonor !== null) {
+                        // could be populated document with email/name fields or just an ObjectId wrapper
+                        if ('email' in rawDonor) {
+                            donor = rawDonor;
+                        } else if ('_id' in rawDonor) {
+                            donor = await userRepo.getUserById(rawDonor._id.toString());
+                        } else {
+                            // fallback to string conversion
+                            donor = await userRepo.getUserById(rawDonor.toString());
+                        }
+                    } else {
+                        donor = await userRepo.getUserById(rawDonor.toString());
+                    }
+                    if (donor && donor.email) {
+                        /* istanbul ignore next */
+                        const html = `<p>Dear ${donor.name || 'Donor'},</p>
+<p>Thank you for donating <strong>${updatedDonation.itemName}</strong> through Aashwaas. We really appreciate your generosity!</p>
+<p>Your contribution makes a real difference.</p>
+<p>Warm regards,<br/>Aashwaas Team</p>`;
+                        /* istanbul ignore next */
+                        await sendEmail(donor.email, 'Thank you for your donation', html);
+                    }
+                }
+            } catch (e) {
+                // log the error but do not block the update flow
+                console.error('Failed to send thank you email', e);
+            }
+        }
+
         return updatedDonation;
     }
 

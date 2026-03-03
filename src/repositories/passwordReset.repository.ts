@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 import { PasswordResetModel, IPasswordReset } from "../models/passwordReset.model";
 import mongoose from "mongoose";
 

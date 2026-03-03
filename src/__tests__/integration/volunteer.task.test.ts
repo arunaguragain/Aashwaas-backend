@@ -1,4 +1,8 @@
 import request from 'supertest';
+
+// some operations can be slow due to database interaction
+jest.setTimeout(20000);
+
 import mongoose from 'mongoose';
 import app from '../../app';
 import { UserModel } from '../../models/user.model';

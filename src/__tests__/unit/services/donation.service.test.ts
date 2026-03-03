@@ -1,7 +1,11 @@
 import { DonationService } from '../../../services/donation.service';
 import { DonationRepository } from '../../../repositories/donation.repository';
+import { UserRepository } from '../../../repositories/user.repository';
+import { sendEmail } from '../../../config/email';
 
 jest.mock('../../../repositories/donation.repository');
+jest.mock('../../../repositories/user.repository');
+jest.mock('../../../config/email', () => ({ sendEmail: jest.fn() }));
 
 describe('DonationService', () => {
   let service: DonationService;
@@ -167,7 +171,7 @@ describe('DonationService', () => {
     });
 
     test('updates and returns donation', async () => {
-      const getByIdSpy = jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce({ _id: 'd1' } as any);
+      const getByIdSpy = jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce({ _id: 'd1', status: 'pending' } as any);
       const updated = { _id: 'd1', status: 'approved' } as any;
       const updateSpy = jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce(updated as any);
 
@@ -176,6 +180,91 @@ describe('DonationService', () => {
       expect(getByIdSpy).toHaveBeenCalledWith('d1');
       expect(updateSpy).toHaveBeenCalledWith('d1', { status: 'approved' });
       expect(result).toBe(updated);
+      // email should not be called for a non-completion change
+      expect(sendEmail).not.toHaveBeenCalled();
+    });
+
+    test('sends thank-you email when status changes to completed', async () => {
+      const existing: any = { _id: 'd10', status: 'assigned', donorId: 'u10', itemName: 'Books' };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce(existing as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce({ ...existing, status: 'completed' } as any);
+      jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValueOnce({ email: 'donor@example.com', name: 'Sam' } as any);
+
+      const result = await service.updateDonation('d10', { status: 'completed' } as any);
+      expect(result!.status).toBe('completed');
+      expect(sendEmail).toHaveBeenCalledWith(
+        'donor@example.com',
+        expect.any(String),
+        expect.stringContaining('Thank you')
+      );
+    });
+
+    test('sends thank-you email with populated donorId and skips user lookup', async () => {
+      const existing: any = {
+        _id: 'd15',
+        status: 'assigned',
+        donorId: { _id: 'u15', email: 'populated@example.com', name: 'Pop' },
+        itemName: 'Food'
+      };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce(existing as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce({ ...existing, status: 'completed' } as any);
+      const userSpy = jest.spyOn(UserRepository.prototype, 'getUserById');
+
+      const result = await service.updateDonation('d15', { status: 'completed' } as any);
+      expect(result!.status).toBe('completed');
+      expect(sendEmail).toHaveBeenCalledWith(
+        'populated@example.com',
+        expect.any(String),
+        expect.stringContaining('Thank you')
+      );
+      expect(userSpy).not.toHaveBeenCalled();
+    });
+
+    test('does not send email if status remains completed', async () => {
+      const existing: any = { _id: 'd11', status: 'completed', donorId: 'u11', itemName: 'Food' };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce(existing as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce(existing as any);
+      jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValueOnce({ email: 'email@x.com' } as any);
+
+      const result = await service.updateDonation('d11', { status: 'completed' } as any);
+      expect(sendEmail).not.toHaveBeenCalled();
+    });
+
+    test('skips email if donorId missing on donation', async () => {
+      const existing: any = { _id: 'd12', status: 'assigned', itemName: 'Books' };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce(existing as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce({ ...existing, status: 'completed' } as any);
+      // no donorId so UserRepository should not be called
+      const userSpy = jest.spyOn(UserRepository.prototype, 'getUserById');
+
+      const result = await service.updateDonation('d12', { status: 'completed' } as any);
+      expect(result!.status).toBe('completed');
+      expect(userSpy).not.toHaveBeenCalled();
+      expect(sendEmail).not.toHaveBeenCalled();
+    });
+
+    test('catches sendEmail failure without throwing', async () => {
+      const existing: any = { _id: 'd13', status: 'assigned', donorId: 'u13', itemName: 'Toy' };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce(existing as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce({ ...existing, status: 'completed' } as any);
+      jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValueOnce({ email: 'fail@x.com', name: 'Fail' } as any);
+      (sendEmail as jest.Mock).mockRejectedValueOnce(new Error('smtp down'));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await service.updateDonation('d13', { status: 'completed' } as any);
+      expect(result!.status).toBe('completed');
+      expect(sendEmail).toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalled();
+    });
+
+    test('returns null when updateDonation repository returns null', async () => {
+      const existing: any = { _id: 'd14', status: 'pending', donorId: 'u14' };
+      jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce(existing as any);
+      jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValueOnce(null as any);
+
+      const result = await service.updateDonation('d14', { status: 'approved' } as any);
+      expect(result).toBeNull();
+      expect(sendEmail).not.toHaveBeenCalled();
     });
   });
 
