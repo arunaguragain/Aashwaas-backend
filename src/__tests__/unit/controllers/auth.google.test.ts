@@ -40,21 +40,42 @@ describe('AuthController.googleSignIn', () => {
   }
 
   test('returns 400 when action=register and email already exists', async () => {
-    // the mock constructor's returned instance is available on mock.results
     const userSvcInstance = (UserService as any).mock.results[0].value;
-    // eslint-disable-next-line no-console
-    console.log('mock results', (UserService as any).mock.results);
     userSvcInstance.getUserByEmail.mockResolvedValue({ _id: 'u1' });
 
     const req: any = { body: { idToken: 'token', action: 'register' } };
     const res = mockRes();
 
     await controller.googleSignIn(req, res, jest.fn());
-    // debug: show actual response body when status is not as expected
-    // eslint-disable-next-line no-console
-    console.log('debug register response', res.status.mock.calls, res.status().json.mock.calls);
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.status().json).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: 'Email already registered' }));
+  });
+
+  test('returns 400 when action=login and user does not exist', async () => {
+    const userSvcInstance = (UserService as any).mock.results[0].value;
+    userSvcInstance.getUserByEmail.mockResolvedValue(null);
+
+    const req: any = { body: { idToken: 'token', action: 'login' } };
+    const res = mockRes();
+
+    await controller.googleSignIn(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status().json).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: 'Email not registered' }));
+  });
+
+  test('login succeeds and does not call create when user exists', async () => {
+    const userSvcInstance = (UserService as any).mock.results[0].value;
+    userSvcInstance.getUserByEmail.mockResolvedValue({ _id: 'u2', email: 'test@example.com', role: 'user' });
+    // ensure findOrCreate is not accidentally invoked
+    userSvcInstance.findOrCreateFromGoogle.mockResolvedValue({ _id: 'should-not', email: 'x' });
+
+    const req: any = { body: { idToken: 'token', action: 'login' } };
+    const res = mockRes();
+
+    await controller.googleSignIn(req, res, jest.fn());
+    expect(userSvcInstance.findOrCreateFromGoogle).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.status().json).toHaveBeenCalledWith(expect.objectContaining({ success: true, token: 'signed-token' }));
   });
 
   test('creates or finds user and returns token when not registering or email not existing', async () => {

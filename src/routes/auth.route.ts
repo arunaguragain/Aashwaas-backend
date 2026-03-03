@@ -9,6 +9,7 @@ const router = Router();
 router.post("/register", authController.register)
 router.post("/login", authController.login)
 router.post("/google", authController.googleSignIn)
+router.get("/exists", authController.exists) // optional helper for frontend
 router.put("/:id", authorizedMiddleware, uploads.single("image"), authController.updateProfile)
 
 router.post("/request-password-reset", 

@@ -198,6 +198,90 @@ describe('AuthController', () => {
     expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Email already registered' });
   });
 
+  test('googleSignIn login returns 400 when user not found', async () => {
+    const req: any = { body: { idToken: 'tok', action: 'login' } };
+    const res = mockRes();
+    const payload = { email: 'missing@x', name: 'Name', picture: 'pic', email_verified: true };
+    const google = require('google-auth-library');
+    jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockResolvedValueOnce({ getPayload: () => payload } as any);
+    jest.spyOn(UserService.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(null);
+
+    await controller.googleSignIn(req, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Email not registered' });
+  });
+
+  test('googleSignIn login succeeds with existing user without creating new', async () => {
+    const req: any = { body: { idToken: 'tok', action: 'login' } };
+    const res = mockRes();
+    const payload = { email: 'exists@x', name: 'Name', picture: 'pic', email_verified: true };
+    const google = require('google-auth-library');
+    jest.spyOn(google.OAuth2Client.prototype, 'verifyIdToken' as any).mockResolvedValueOnce({ getPayload: () => payload } as any);
+    const existing = { _id: 'u_exists', email: 'exists@x', role: 'user' } as any;
+    const getSpy = jest.spyOn(UserService.prototype, 'getUserByEmail' as any).mockResolvedValueOnce(existing as any);
+    const createSpy = jest.spyOn(UserService.prototype, 'findOrCreateFromGoogle' as any);
+    const jwt = require('jsonwebtoken');
+    jest.spyOn(jwt, 'sign' as any).mockReturnValueOnce('exist-token');
+
+    await controller.googleSignIn(req, res, jest.fn());
+    expect(getSpy).toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, token: 'exist-token' }));
+  });
+
+  test('exists returns 400 when email missing', async () => {
+    const req: any = { query: {} };
+    const res = mockRes();
+    await controller.exists(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Email is required' });
+  });
+
+  test('exists returns true/false appropriately', async () => {
+    const req1: any = { query: { email: 'a@b' } };
+    const res1 = mockRes();
+    jest.spyOn(UserService.prototype, 'getUserByEmail').mockResolvedValueOnce({ _id: 'u1' } as any);
+    await controller.exists(req1, res1);
+    expect(res1.status).toHaveBeenCalledWith(200);
+    expect(res1.json).toHaveBeenCalledWith({ success: true, exists: true });
+
+    const req2: any = { query: { email: 'no@x' } };
+    const res2 = mockRes();
+    jest.spyOn(UserService.prototype, 'getUserByEmail').mockResolvedValueOnce(null as any);
+    await controller.exists(req2, res2);
+    expect(res2.status).toHaveBeenCalledWith(200);
+    expect(res2.json).toHaveBeenCalledWith({ success: true, exists: false });
+  });
+
+  test('exists handles email provided in body instead of query', async () => {
+    const req: any = { body: { email: 'body@x' } };
+    const res = mockRes();
+    jest.spyOn(UserService.prototype, 'getUserByEmail').mockResolvedValueOnce({ _id: 'ub' } as any);
+    await controller.exists(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ success: true, exists: true });
+  });
+
+  test('exists handles underlying service error gracefully', async () => {
+    const req: any = { query: { email: 'err@x' } };
+    const res = mockRes();
+    jest.spyOn(UserService.prototype, 'getUserByEmail').mockRejectedValueOnce(new Error('boom'));
+    await controller.exists(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'boom' });
+  });
+
+  test('exists handles service error with no message (fallback branch)', async () => {
+    const req: any = { query: { email: 'err2@x' } };
+    const res = mockRes();
+    // simulate an error object lacking a message property
+    jest.spyOn(UserService.prototype, 'getUserByEmail').mockRejectedValueOnce({ statusCode: 418 });
+    await controller.exists(req, res);
+    expect(res.status).toHaveBeenCalledWith(418);
+    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Internal Server Error' });
+  });
+
   test('googleSignIn register creates new user when email does not exist', async () => {
     const req: any = { body: { idToken: 'tok', action: 'register' } };
     const res = mockRes();
