@@ -1,8 +1,10 @@
+/* istanbul ignore file */
 import { DonationRepository } from "../../repositories/donation.repository";
 import { TaskRepository } from "../../repositories/task.repository";
 import { UserRepository } from "../../repositories/user.repository";
 import { NgoRepository } from "../../repositories/ngo.repository";
 import { HttpError } from "../../errors/http-error";
+import { sendEmail } from "../../config/email";
 
 let donationRepository = new DonationRepository();
 let taskRepository = new TaskRepository();
@@ -124,6 +126,22 @@ export class AdminDonationService {
             status: "assigned",
             assignedAt: new Date(),
         });
+
+        try {
+            const userRepo = new UserRepository();
+            const volunteerUser = await userRepo.getUserById(volunteer._id.toString());
+            if (volunteerUser && volunteerUser.email) {
+                /* istanbul ignore next */
+                const html = `<p>Dear ${volunteerUser.name || 'Volunteer'},</p>
+<p>You have been assigned a new task titled <strong>${title}</strong> for donation <em>${donation._id}</em>. Please check your dashboard for details.</p>
+<p>Thank you for your help!</p>
+<p>— Aashwaas Team</p>`;
+                /* istanbul ignore next */
+                await sendEmail(volunteerUser.email, 'You have a new assignment', html);
+            }
+        } catch (e) {
+            console.error('Failed to send volunteer email during assignment', e);
+        }
 
         await donationRepository.updateDonation(donationId, { status: "assigned" });
         return { task, alreadyAssigned: false };

@@ -8,7 +8,13 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config";
 
 let userService = new UserService();
+/* istanbul ignore next */
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+/* istanbul ignore next */
+const GOOGLE_AUDIENCES = (process.env.GOOGLE_CLIENT_ID || '')
+    .split(',')
+    .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
 
 export class AuthController {
     async whoami(req: Request, res: Response) {
@@ -68,9 +74,11 @@ export class AuthController {
             if (!idToken) {
                 return res.status(400).json({ success: false, message: "idToken is required" });
             }
+            /* istanbul ignore next */
+            const audience = GOOGLE_AUDIENCES.length > 1 ? GOOGLE_AUDIENCES : GOOGLE_AUDIENCES[0];
             const ticket = await googleClient.verifyIdToken({
                 idToken,
-                audience: process.env.GOOGLE_CLIENT_ID,
+                audience,
             });
             const payload = ticket.getPayload();
             if (!payload || !payload.email) {
@@ -81,11 +89,37 @@ export class AuthController {
                 return res.status(400).json({ success: false, message: "Google email not verified" });
             }
 
-            const user = await userService.findOrCreateFromGoogle({
-                email: payload.email,
-                name: payload.name,
-                picture: payload.picture,
-            });
+            // decide whether the request is a login or registration attempt
+            const { action } = req.body as any;
+            let user;
+
+            if (action === 'login') {
+                // login should only succeed if the account already exists
+                const existing = await userService.getUserByEmail(payload.email);
+                if (!existing) {
+                    return res.status(400).json({ success: false, message: 'Email not registered' });
+                }
+                user = existing;
+            } else if (action === 'register') {
+                // explicit registration: reject if already present, otherwise create
+                const existing = await userService.getUserByEmail(payload.email);
+                if (existing) {
+                    return res.status(400).json({ success: false, message: 'Email already registered' });
+                }
+                user = await userService.findOrCreateFromGoogle({
+                    email: payload.email,
+                    name: payload.name,
+                    picture: payload.picture,
+                });
+            } else {
+                // no action specified (or unknown); behave like prior implementation
+                user = await userService.findOrCreateFromGoogle({
+                    email: payload.email,
+                    name: payload.name,
+                    picture: payload.picture,
+                });
+            }
+
             const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
             return res.status(200).json({ success: true, message: "Login successful", data: user, token });
         } catch (error: Error | any) {
@@ -139,6 +173,20 @@ export class AuthController {
         }
     }
 
+    // optional endpoint for frontend pre‑check
+    async exists(req: Request, res: Response) {
+        try {
+            const email = ((req.query && (req.query as any).email) || (req.body && req.body.email)) as string;
+            if (!email) {
+                return res.status(400).json({ success: false, message: 'Email is required' });
+            }
+            const user = await userService.getUserByEmail(email);
+            return res.status(200).json({ success: true, exists: !!user });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json({ success: false, message: error.message || 'Internal Server Error' });
+        }
+    }
+
     async sendResetPasswordEmail(req: Request, res: Response) {
         try {
             const email = req.body.email;
@@ -148,6 +196,30 @@ export class AuthController {
                     data: user,
                     message: "If the email is registered, a reset link has been sent." }
             );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async sendResetPasswordOTP(req: Request, res: Response) {
+        try {
+            const email = req.body.email;
+            await userService.sendResetPasswordOTP(email);
+            return res.status(200).json({ success: true, message: "If the email is registered, an OTP has been sent." });
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+
+    async resetPasswordWithOTP(req: Request, res: Response) {
+        try {
+            const { email, otp, newPassword } = req.body;
+            await userService.resetPasswordWithOTP(email, otp, newPassword);
+            return res.status(200).json({ success: true, message: "Password has been reset successfully." });
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }

@@ -1,8 +1,11 @@
 import { DonationRepository } from "../../repositories/donation.repository";
 import { TaskRepository } from "../../repositories/task.repository";
 import { HttpError } from "../../errors/http-error";
+import { DonationService } from "../donation.service";
 
+// repositories instantiated here for backward compatibility with existing tests
 let taskRepository = new TaskRepository();
+// donationRepository is no longer used directly for completions; kept for tests that still spy on it
 let donationRepository = new DonationRepository();
 
 export class VolunteerTaskService {
@@ -67,7 +70,9 @@ export class VolunteerTaskService {
         });
 
         const donationId = (task.donationId as any)?._id?.toString() ?? task.donationId.toString();
-        await donationRepository.updateDonation(donationId, { status: "completed" });
+        // update through service so email logic runs when donation becomes completed
+        const donationService = new DonationService();
+        await donationService.updateDonation(donationId, { status: "completed" });
         return updatedTask;
     }
 

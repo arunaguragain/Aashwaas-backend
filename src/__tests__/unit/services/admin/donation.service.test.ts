@@ -1,19 +1,39 @@
-import { AdminDonationService } from '../../../../services/admin/donation.service';
-import { DonationRepository } from '../../../../repositories/donation.repository';
-import { TaskRepository } from '../../../../repositories/task.repository';
-import { UserRepository } from '../../../../repositories/user.repository';
-import { NgoRepository } from '../../../../repositories/ngo.repository';
-import { HttpError } from '../../../../errors/http-error';
+// mock email module before importing anything that uses it
+jest.mock('../../../../config/email', () => ({ sendEmail: jest.fn() }));
+
+let sendEmail: jest.Mock;
+let AdminDonationService: any;
+let DonationRepository: any;
+let TaskRepository: any;
+let UserRepository: any;
+let NgoRepository: any;
+let HttpError: any;
+
+// we will require these modules fresh inside beforeEach to ensure mocked sendEmail is used
 
 describe('AdminDonationService', () => {
-  let service: AdminDonationService;
+  let service: any;
 
   beforeEach(() => {
+    jest.resetModules();
     jest.clearAllMocks();
+    // re-require modules to pick up mocked sendEmail
+    ({ sendEmail } = require('../../../../config/email'));
+    ({ AdminDonationService } = require('../../../../services/admin/donation.service'));
+    ({ DonationRepository } = require('../../../../repositories/donation.repository'));
+    ({ TaskRepository } = require('../../../../repositories/task.repository'));
+    ({ UserRepository } = require('../../../../repositories/user.repository'));
+    ({ NgoRepository } = require('../../../../repositories/ngo.repository'));
+    ({ HttpError } = require('../../../../errors/http-error'));
+
     service = new AdminDonationService();
+    // default stubs to avoid mongoose access
+    jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValue(null as any);
+    jest.spyOn(DonationRepository.prototype, 'updateDonation').mockResolvedValue(null as any);
     jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue({ _id: 'v-default', role: 'volunteer' } as any);
     jest.spyOn(NgoRepository.prototype, 'getNgoById').mockResolvedValue({ _id: 'n-default', name: 'NGO Default' } as any);
     jest.spyOn(TaskRepository.prototype, 'getActiveTaskByDonationId').mockResolvedValue(null as any);
+    jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValue(null as any);
   });
 
   test('getDonationById throws 400 when id missing', async () => {
@@ -181,9 +201,10 @@ describe('AdminDonationService', () => {
     }
     });
 
-    test('assignDonation creates task and updates donation (or returns alreadyAssigned)', async () => {
+    test('assignDonation creates task and updates donation (and sends email)', async () => {
       jest.spyOn(DonationRepository.prototype, 'getDonationById').mockResolvedValueOnce({ _id: 'ffffffffffffffffffffffff', status: 'approved' } as any);
-      jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValueOnce({ _id: 'v4', role: 'volunteer' } as any);
+      // stub volunteer lookup directly via prototype after module reload
+      jest.spyOn(UserRepository.prototype, 'getUserById').mockResolvedValue({ _id: 'v4', role: 'volunteer', email: 'vol@example.com', name: 'Volunteer Four' } as any);
       jest.spyOn(NgoRepository.prototype, 'getNgoById').mockResolvedValueOnce({ _id: 'n4' } as any);
       jest.spyOn(TaskRepository.prototype, 'getActiveTaskByDonationId').mockResolvedValueOnce(null as any);
       jest.spyOn(TaskRepository.prototype, 'createTask').mockResolvedValueOnce({ _id: 'tnew' } as any);
@@ -192,7 +213,9 @@ describe('AdminDonationService', () => {
       const res = await service.assignDonation('ffffffffffffffffffffffff', 'v4', 'n4', 'Title');
       expect(res).toHaveProperty('alreadyAssigned');
       expect(res.alreadyAssigned).toBeDefined();
+      expect(sendEmail).toHaveBeenCalled();
     });
+
 
     test('deleteDonation returns repository result on valid id', async () => {
       jest.spyOn(DonationRepository.prototype, 'deleteDonation').mockResolvedValueOnce(true as any);
